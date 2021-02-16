@@ -81,7 +81,6 @@
         const delta =   {len:5, ang:0};
 
         var canvas = document.getElementById("myFrame"); 
-        var graph1 = document.getElementById("myGraph"); 
         var ctx = canvas.getContext("2d");
         var slider = document.getElementById("myAccel");
         var output = document.getElementById("results");
@@ -451,6 +450,8 @@
           ctx.stroke();
 
           let current_force = Fr_force(current);
+          if (current_force > force_max) current_force = force_max;
+		      if (current_force < force_min) current_force = force_min;
           ctx.setLineDash([5, 1]);
           ctx.strokeStyle = "blue";
           ctx.beginPath();
@@ -518,6 +519,8 @@
           ctx.stroke();
 
           let current_force = Rr_force(current);
+          if (current_force > force_max) current_force = force_max;
+		      if (current_force < force_min) current_force = force_min;
           ctx.setLineDash([5, 1]);
           ctx.strokeStyle = "blue";
           ctx.beginPath();
@@ -1016,7 +1019,7 @@
             front_force.perror =	(Fr_force(length.front) / motion_ratio[0].len) - front_force.pvector;
             rear_force.perror = 	(Rr_force(length.rear) 	/ motion_ratio[1].len) - rear_force.pvector;
             
-            let damping = 0.6;
+            let damping = 0.5;
             length.front += damping * front_force.perror 	/ (shock_rate_front / motion_ratio[0].len);
             length.rear += 	damping *	rear_force.perror 	/	(shock_rate_rear 	/ motion_ratio[1].len );
             
