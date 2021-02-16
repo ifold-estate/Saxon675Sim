@@ -4,7 +4,7 @@
     <style>
       body { margin: 1px; font-family: Arial, Helvetica, sans-serif; }
       .sketchpad { width: 100%; border: blue 2px solid; }
-      .slidecontainer { width: 50%; }
+      .slidecontainer { width: 50%; display: inline-block; white-space: nowrap; }
       .slider:hover { opacity: 1; }
       .slider {
         -webkit-appearance: none;
@@ -145,7 +145,7 @@
             preload: 20,
             free: 170,
             crushed: 80,
-            rate: 9
+            rate: 10
           };
           let Front_Top_out = {
             base: 150,
@@ -169,7 +169,7 @@
           return force;
         }
         function Rr_force(length) {
-          let adjuster = 05; // mm
+          let adjuster = 15; // mm
           let Rear_Main = {
             base: 47,
             plunger: 80,
