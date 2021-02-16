@@ -319,8 +319,10 @@
           // x increases on the right and y increases downwards
           let height = FCP.y;
           if (RCP.y < height) height = RCP.y;		// should be equal therefore not needed
-          ctx.fillStyle = 'grey';
-          ctx.fillRect(-2000, height, (4000), -1000);
+    		ctx.globalCompositeOperation='destination-over';
+		ctx.fillStyle = 'grey';
+    		ctx.fillRect(-2000, height, (4000), -1000);
+		ctx.globalCompositeOperation='source-over';
         }
         function drawCofG() {
           ctx.globalAlpha = 1;
@@ -398,15 +400,20 @@
           // render an arc
           // arc takes x, y, radius, startangle, endangle and anticlockwise
           // to render full circle pass 0 and 2*Math.PI as the values for start and end angle
-          ctx.beginPath();
-          ctx.arc(position.x, position.y, radius1, tyre_start, tyre_stop, false);
-          ctx.fillStyle = "darkgrey";
-          ctx.fill();
+   	
+		ctx.globalCompositeOperation='destination-over';
 
-          ctx.beginPath();
-          ctx.arc(position.x, position.y, radius2, 0, rad(360), false);
-          ctx.fillStyle = "white";
-          ctx.fill();
+		ctx.beginPath();
+		ctx.arc(position.x, position.y, radius2, 0, rad(360), false);
+		ctx.fillStyle = "white";
+		ctx.fill();
+
+		ctx.beginPath();
+		ctx.arc(position.x, position.y, radius1, tyre_start, tyre_stop, false);
+		ctx.fillStyle = "darkgrey";
+		ctx.fill();
+
+		ctx.globalCompositeOperation='source-over';
         }
         function drawFrontGraph(current) {
           let x_shift = 1; let y_shift = 1;
