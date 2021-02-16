@@ -3,9 +3,8 @@
   <head>
     <style>
       body { margin: 1px; font-family: Arial, Helvetica, sans-serif; }
-      .sketchpad { width: 99%; border: blue 2px solid; }
-      .graph { width: 48.5%; border: blue 2px solid; }
-      .slidecontainer { width: 100%; }
+      .sketchpad { width: 100%; border: blue 2px solid; }
+      .slidecontainer { width: 50%; }
       .slider:hover { opacity: 1; }
       .slider {
         -webkit-appearance: none;
@@ -32,6 +31,7 @@
     <div class="slidecontainer">
       <a>Brake</a>
       <input type="range" min="-1.5" max="1.2" step="0.05" value="0.0" class="slider" id="myAccel">
+      <a>Drive</a>
     </div>
     <div id="results" style="white-space: pre-wrap" />
     
@@ -955,28 +955,25 @@
 
             build_all();
 
-            let delta = 0.5;
+            let delta = 0.05;
             build_front(length.front +delta);
             let fw_p = FWS;
             build_front(length.front -delta);
             let fw_m = FWS;
             motion_ratio[0] = polar(fw_m, fw_p);
+            motion_ratio[0].len *= 1/(2*delta);
             motion_ratio[0].ang -= 90;
-            let shock_rate_front = Fr_force(length.front - 0.5) - Fr_force(length.front + 0.5);
+            let shock_rate_front = (Fr_force(length.front - delta) - Fr_force(length.front + delta)) /(2*delta);
 
-            //text[text.length+1] = k + " Front: " + motion_ratio_front.len.toFixed(2) + '<' + motion_ratio_front.ang.toFixed(1) + ' ' + shock_rate_front.toFixed(1) + ' \n';
-
-            build_rear(length.rear +0.5);
+            build_rear(length.rear +delta);
             let rw_p = RWS;
-            build_rear(length.rear -0.5);
+            build_rear(length.rear -delta);
             let rw_m = RWS;
             motion_ratio[1] = polar(rw_m, rw_p);
+            motion_ratio[1].len *= 1/(2*delta);
             motion_ratio[1].ang -= 90;
-            let shock_rate_rear = Rr_force(length.rear - 0.5) - Rr_force(length.rear + 0.5);
-            //console.log(k, err, motion_ratio_front.len, motion_ratio_rear.len);
-            //console.log(motion_ratio_rear);
-            //text[text.length+1] = k + " Rear: " + motion_ratio_rear.len.toFixed(2) + '<' + motion_ratio_rear.ang.toFixed(1) + ' ' + shock_rate_front.toFixed(1) + ' \n';
-
+            let shock_rate_rear = (Rr_force(length.rear - delta) - Rr_force(length.rear + delta)) /(2*delta);
+            
             build_all();
             length.wheelbase = polar(FCP, RCP).len;
 
@@ -988,8 +985,8 @@
             front_force.vbase = mass.total * CofG_Fr;
             rear_force.vbase =  mass.total * CofG_Rr;
             var moment = acc.forward * mass.total * CofG_height;
-            front_force.vtransfer = -moment / length.wheelbase / 2;
-            rear_force.vtransfer =  +moment / length.wheelbase / 2;
+            front_force.vtransfer = -moment / length.wheelbase;
+            rear_force.vtransfer =  +moment / length.wheelbase;
             var hbrake = 0;
             var hdrive = 0;
             if (acc.forward > 0) hdrive = mass.total * acc.forward;
@@ -1018,11 +1015,11 @@
 
             front_force.perror =	(Fr_force(length.front) / motion_ratio[0].len) - front_force.pvector;
             rear_force.perror = 	(Rr_force(length.rear) 	/ motion_ratio[1].len) - rear_force.pvector;
-            //console.log(error_front, error_rear);
+            
             let damping = 0.6;
             length.front += damping * front_force.perror 	/ (shock_rate_front / motion_ratio[0].len);
             length.rear += 	damping *	rear_force.perror 	/	(shock_rate_rear 	/ motion_ratio[1].len );
-            //console.log(base_front, transfer_front, dive_brake, vector_front, error_front)
+            
             // renders the diagram based on front & rear shock length as parameters
             build_all();
           }
