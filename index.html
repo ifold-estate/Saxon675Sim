@@ -495,7 +495,7 @@
     		ctx.lineWidth = 1;
 
 		let y_mult = 100/range;
-		let x_mult = 100/Fr_force(length.Fr_shock_min);
+		let x_mult = 100/(Fr_force(length.Fr_shock_min)-Fr_force(length.Fr_shock_max));
     		ctx.beginPath();
 		ctx.moveTo(Fr_force(length.Fr_shock_min) *x_mult,0);
 		
@@ -549,7 +549,7 @@
 	    	ctx.lineWidth = 1;
 
 		let y_mult = 100/range;
-		let x_mult = 100/Rr_force(length.Rr_shock_min);
+		let x_mult = 100/(Rr_force(length.Rr_shock_min)-Rr_force(length.Rr_shock_max));
     		ctx.moveTo(Rr_force(length.Rr_shock_min) *x_mult, 0);
 		
 		for (let delta=0; delta<=range; delta += step) {
