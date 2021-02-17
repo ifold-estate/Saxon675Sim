@@ -478,24 +478,24 @@
 		ctx.globalCompositeOperation='source-over';
         }
 	function drawFrontGraph(current) {
-		let x_shift = 1; let y_shift = 1;
+		let x_shift = 2; let y_shift = 1;
 		let size = 100;
-		let start = 250; let stop = 350; let step=0.1;
+		let step=1;
 		
 		let range = length.Fr_shock_max - length.Fr_shock_min;
 		let cross = 5;
 
-		let scale = (1000/21)*(4/100);
+		let scale = (1000/22)*(4/100);
 		let old = ctx.getTransform();
-		void ctx.setTransform(scale, 0, 0, scale, (1000/21*x_shift), (1000/21*y_shift));
+		void ctx.setTransform(scale, 0, 0, scale, (1000/22*x_shift), (1000/22*y_shift));
 		
 		ctx.globalAlpha = 1;
     		ctx.setLineDash([10, 0]);
     		ctx.strokeStyle = "red";
     		ctx.lineWidth = 1;
 
-		let y_mult = 100/range;
-		let x_mult = 100/(Fr_force(length.Fr_shock_min)-Fr_force(length.Fr_shock_max));
+		let y_mult = size/range;
+		let x_mult = size/(Fr_force(length.Fr_shock_min)-Fr_force(length.Fr_shock_max));
     		ctx.beginPath();
 		ctx.moveTo(Fr_force(length.Fr_shock_min) *x_mult,0);
 		
@@ -539,17 +539,17 @@
 		let range = length.Rr_shock_max - length.Rr_shock_min;
 		let cross = 5;
 
-		let scale = (1000/21)*(4/100);
+		let scale = (1000/22)*(4/100);
 		let old = ctx.getTransform();
-		void ctx.setTransform(scale, 0, 0, scale, (1000/21*x_shift), (1000/21*y_shift));
+		void ctx.setTransform(scale, 0, 0, scale, (1000/22*x_shift), (1000/22*y_shift));
 		
 		ctx.globalAlpha = 1;
 	    	ctx.setLineDash([10, 0]);
 	    	ctx.strokeStyle = "red";
 	    	ctx.lineWidth = 1;
 
-		let y_mult = 100/range;
-		let x_mult = 100/(Rr_force(length.Rr_shock_min)-Rr_force(length.Rr_shock_max));
+		let y_mult = size/range;
+		let x_mult = size/(Rr_force(length.Rr_shock_min)-Rr_force(length.Rr_shock_max));
     		ctx.moveTo(Rr_force(length.Rr_shock_min) *x_mult, 0);
 		
 		for (let delta=0; delta<=range; delta += step) {
