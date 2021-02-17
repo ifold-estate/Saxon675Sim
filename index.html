@@ -57,15 +57,19 @@
         };
         var CofG = [];
         var mass = {total: 250, frame:120, fuel:15, rider:110, front:20, rear:25};
-        var length = {
-          front: 290,		// front shock length
-          head: 330,		// Steering head, separation between bearings
-          rear: 330,		// rear shock length
-          gap: 330,
-          wheelbase: 1420,
-          trail: 0,
-          swingarm_pickup: 200	// length of pickup. Needs to be global to align link & swingarm 
-        };
+	var length = {
+    		front: 290,		// front shock length
+    		head: 330,		// Steering head, separation between bearings
+    		rear: 330,		// rear shock length
+		gap: 330,
+		wheelbase: 1420,
+		trail: 0,
+		Fr_shock_min:200,
+		Fr_shock_max:350,
+		Rr_shock_min:200,
+		Rr_shock_max:350,
+    		swingarm_pickup: 200	// length of pickup. Needs to be global to align link & swingarm 
+  	};
         var ang = { frame: -27, eccen: 0,
                     front: 0, shock_fr: 0, rake: 0, forks: 0,
                     rear: 0, shock_rr: 0, beam: 0, link: 0, chain: 0 };
@@ -198,6 +202,64 @@
                         spring(Rear_Bump_stop, length - adjuster);
           return force;
         }
+	function Fr_length(force) {
+	let shortest = 240; let middle = 285; let longest = 330;
+	let Fs=0; let Fm=0; let Fl=0;
+	let rate = -10;
+	let i = 20;
+	do {
+		Fs = Fr_force(shortest);
+		Fm = Fr_force(middle);
+		Fl = Fr_force(longest);
+		rate = (Fl - Fs) / (longest-shortest);
+
+		if ((force<=Fs) && (force>=Fm)) {	//result is in first half between short & middle
+			longest = middle;
+			rate = (Fm - Fs) / (middle-shortest)
+		}
+		else if ((force<Fm) && (force>=Fl)) {	// result is in second half
+			shortest = middle;
+			rate = (Fl - Fm) / (longest-middle)
+		}
+		else {		// result was not in range
+			shortest -= 10;
+			longest += 10;
+		}
+		middle = (longest + shortest) /2;
+		if (Math.abs(Fm-force) < 0.05) break
+		i--;
+	} while (i > 0)
+	return {length:middle, rate:rate, i};
+	}
+	function Rr_length(force) {
+	let shortest = 240; let middle = 285; let longest = 330;
+	let Fs=0; let Fm=0; let Fl=0;
+	let rate = -10;
+	let i = 20;
+	do {
+		Fs = Rr_force(shortest);
+		Fm = Rr_force(middle);
+		Fl = Rr_force(longest);
+		rate = (Fl - Fs) / (longest-shortest);
+
+		if ((force<=Fs) && (force>=Fm)) {	//result is in first half between short & middle
+			longest = middle;
+			rate = (Fm - Fs) / (middle-shortest)
+		}
+		else if ((force<Fm) && (force>=Fl)) {	// result is in second half
+			shortest = middle;
+			rate = (Fl - Fm) / (longest-middle)
+		}
+		else {		// result was not in range
+			shortest -= 10;
+			longest += 10;
+		}
+		middle = (longest + shortest) /2;
+		if (Math.abs(Fm-force) < 0.05) break
+		i--;
+	} while (i > 0)
+	return {length:middle, rate:rate, i};
+	}
         function vector(input_vector, rotation, position={x:0, y:0}, draw=0) { 
           let input_xy = xy(input_vector);
           let relative = xy({len: input_vector.len, ang: +rotation});
@@ -415,146 +477,115 @@
 
 		ctx.globalCompositeOperation='source-over';
         }
-        function drawFrontGraph(current) {
-          let x_shift = 1; let y_shift = 1;
-          let size = 100;
-          let start = 250; let stop = 350; let step=1;
-          let shock_min = 300; let shock_max = 300;	// vertical axis
-          let force_min =   0; let force_max = 800; // horizontal axis
+	function drawFrontGraph(current) {
+		let x_shift = 1; let y_shift = 1;
+		let size = 100;
+		let start = 250; let stop = 350; let step=0.1;
+		
+		let range = length.Fr_shock_max - length.Fr_shock_min;
+		let cross = 5;
 
-          for (let sweep=start; sweep<=stop; sweep += step) {
-            let swept_force = Fr_force(sweep);
-            if (swept_force > force_max) shock_min = sweep; 
-          }	
+		let scale = (1000/21)*(4/100);
+		let old = ctx.getTransform();
+		void ctx.setTransform(scale, 0, 0, scale, (1000/21*x_shift), (1000/21*y_shift));
+		
+		ctx.globalAlpha = 1;
+    		ctx.setLineDash([10, 0]);
+    		ctx.strokeStyle = "red";
+    		ctx.lineWidth = 1;
 
-          for (let sweep=stop; sweep>=start; sweep -= step) {
-            let swept_force = Fr_force(sweep);
-            if (swept_force < force_min) shock_max = sweep; 
-          }	
+		let y_mult = 100/range;
+		let x_mult = 100/Fr_force(length.Fr_shock_min);
+    		ctx.beginPath();
+		ctx.moveTo(Fr_force(length.Fr_shock_min) *x_mult,0);
+		
+		for (let delta=0; delta<=range; delta += step) {
+			let swept_force = Fr_force(length.Fr_shock_min+delta);
+			ctx.lineTo(swept_force *x_mult, delta *y_mult); 
+		}
+		ctx.stroke();
+		
+		let current_force = Fr_force(current);
+		ctx.setLineDash([5, 1]);
+		ctx.strokeStyle = "blue";
+		ctx.beginPath();
+    		ctx.moveTo(current_force *x_mult, 100);
+		ctx.lineTo(current_force *x_mult, 0);
+		ctx.stroke();
+		
+		ctx.strokeStyle = "blue";
+		ctx.beginPath();
+    		ctx.moveTo(0, (current-length.Fr_shock_min)*y_mult);
+		ctx.lineTo(current_force *x_mult +cross, (current-length.Fr_shock_min)*y_mult);
+		ctx.stroke();
+		
+		ctx.font = "10px Arial";
+		let pct = 100 - (current-length.Fr_shock_min)/range*100;
+		ctx.beginPath();
+		ctx.fillText(current.toFixed(1) + ' mm', -20, (current-length.Fr_shock_min)*y_mult -cross)
+		ctx.fillText(pct.toFixed(1) + ' %', current_force *x_mult +(2*cross), (current-length.Fr_shock_min)*y_mult +3);
+		ctx.fillText(current_force.toFixed(1) + ' kg', current_force *x_mult -15, -5);
+    		ctx.fillText(front_force.pbase.toFixed(1) + ' kg base', current_force *x_mult -15, 110);
+    		ctx.fillText(front_force.ptransfer.toFixed(1) + ' kg transfer', current_force *x_mult -15, 120);
+		ctx.fillText(front_force.pbrake.toFixed(1) + ' kg brake', current_force *x_mult -15, 130);
+    		ctx.globalAlpha = 1;
+		void ctx.setTransform(old);
+	}
+	function drawRearGraph(current) {
+		let x_shift = 16; let y_shift = 1;
+		let size = 100;
+		let step=1;
 
-          let range = shock_max - shock_min;
-          let cross = 5;
+		let range = length.Rr_shock_max - length.Rr_shock_min;
+		let cross = 5;
 
-          let scale = (1000/21)*(4/100);
-          let old = ctx.getTransform();
-          void ctx.setTransform(scale, 0, 0, scale, (1000/21*x_shift), (1000/21*y_shift));
+		let scale = (1000/21)*(4/100);
+		let old = ctx.getTransform();
+		void ctx.setTransform(scale, 0, 0, scale, (1000/21*x_shift), (1000/21*y_shift));
+		
+		ctx.globalAlpha = 1;
+	    	ctx.setLineDash([10, 0]);
+	    	ctx.strokeStyle = "red";
+	    	ctx.lineWidth = 1;
 
-          ctx.globalAlpha = 1;
-          ctx.setLineDash([10, 0]);
-          ctx.strokeStyle = "red";
-          ctx.lineWidth = 1;
+		let y_mult = 100/range;
+		let x_mult = 100/Rr_force(length.Rr_shock_min);
+    		ctx.moveTo(Rr_force(length.Rr_shock_min) *x_mult, 0);
+		
+		for (let delta=0; delta<=range; delta += step) {
+			let swept_force = Rr_force(length.Rr_shock_min+delta);
+			ctx.lineTo(swept_force *x_mult, delta *y_mult); 
+		}
+		ctx.stroke();
+		
+		let current_force = Rr_force(current);
+		ctx.setLineDash([5, 1]);
+		ctx.strokeStyle = "blue";
+		ctx.beginPath();
+    		ctx.moveTo(current_force *x_mult, 100);
+		ctx.lineTo(current_force *x_mult, 0);
+		ctx.stroke();
+		
+		ctx.strokeStyle = "blue";
+		ctx.beginPath();
+    		ctx.moveTo(0, (current-length.Rr_shock_min)*y_mult);
+		ctx.lineTo(current_force *x_mult +cross, (current-length.Rr_shock_min)*y_mult);
+		ctx.stroke();
+		
+		ctx.font = "10px Arial";
+		let pct = 100 - (current-length.Rr_shock_min)/range*100;
+		ctx.beginPath();
+		ctx.fillText(current.toFixed(1) + ' mm', -20, (current-length.Rr_shock_min)*y_mult -cross)
+		ctx.fillText(pct.toFixed(1) + ' %', current_force *x_mult +(2*cross), (current-length.Rr_shock_min)*y_mult +3);
+		ctx.fillText(current_force.toFixed(1) + ' kg', current_force *x_mult -15, -5);
+    		ctx.fillText(rear_force.pbase.toFixed(1) + ' kg base', current_force *x_mult -15, 110);
+    		ctx.fillText(rear_force.ptransfer.toFixed(1) + ' kg transfer', current_force *x_mult -15, 120);
+		ctx.fillText(rear_force.pdrive.toFixed(1) + ' kg drive', current_force *x_mult -15, 130);
+		ctx.fillText(rear_force.pchain.toFixed(1) + ' kg chain', current_force *x_mult -15, 140);
 
-          let y_mult = 100/range;
-          let x_mult = 100/force_max;
-          ctx.moveTo(force_max *x_mult, 0);
-
-          for (let delta=0; delta<=range; delta += step) {
-            let swept_force = Fr_force(shock_min+delta);
-            if (swept_force > force_max) swept_force = force_max;
-            if (swept_force < force_min) swept_force = force_min;
-            ctx.lineTo(swept_force *x_mult, delta *y_mult); 
-          }
-          ctx.stroke();
-
-          let current_force = Fr_force(current);
-          if (current_force > force_max) current_force = force_max;
-		      if (current_force < force_min) current_force = force_min;
-          ctx.setLineDash([5, 1]);
-          ctx.strokeStyle = "blue";
-          ctx.beginPath();
-          ctx.moveTo(current_force *x_mult, 100);
-          ctx.lineTo(current_force *x_mult, 0);
-          ctx.stroke();
-
-          ctx.strokeStyle = "blue";
-          ctx.beginPath();
-          ctx.moveTo(0, (current-shock_min)*y_mult);
-          ctx.lineTo(current_force *x_mult +cross, (current-shock_min)*y_mult);
-          ctx.stroke();
-
-          ctx.font = "10px Arial";
-          let pct = 100 - (current-shock_min)/range*100;
-          ctx.beginPath();
-          ctx.fillText(current.toFixed(1) + ' mm', -20, (current-shock_min)*y_mult -cross)
-          ctx.fillText(pct.toFixed(1) + ' %', current_force *x_mult +(2*cross), (current-shock_min)*y_mult +3);
-          ctx.fillText(current_force.toFixed(1) + ' kg', current_force *x_mult -15, -5);
-          ctx.fillText(front_force.pbase.toFixed(1) + ' kg base', current_force *x_mult -15, 110);
-          ctx.fillText(front_force.ptransfer.toFixed(1) + ' kg transfer', current_force *x_mult -15, 120);
-          ctx.fillText(front_force.pbrake.toFixed(1) + ' kg brake', current_force *x_mult -15, 130);
-          ctx.globalAlpha = 1;
-          void ctx.setTransform(old);
-        }
-        function drawRearGraph(current) {
-          let x_shift = 16; let y_shift = 1;
-          let size = 100;
-          let start = 250; let stop = 350; let step=1;
-          let shock_min = 300; let shock_max = 300;	// vertical axis
-          let force_min =   0; let force_max = 950; // horizontal axis
-
-          for (let sweep=start; sweep<=stop; sweep += step) {
-            let swept_force = Rr_force(sweep);
-            if (swept_force > force_max) shock_min = sweep; 
-          }	
-
-          for (let sweep=stop; sweep>=start; sweep -= step) {
-            let swept_force = Rr_force(sweep);
-            if (swept_force < force_min) shock_max = sweep; 
-          }	
-
-          let range = shock_max - shock_min;
-          let cross = 5;
-
-          let scale = (1000/21)*(4/100);
-          let old = ctx.getTransform();
-          void ctx.setTransform(scale, 0, 0, scale, (1000/21*x_shift), (1000/21*y_shift));
-
-          ctx.globalAlpha = 1;
-          ctx.setLineDash([10, 0]);
-          ctx.strokeStyle = "red";
-          ctx.lineWidth = 1;
-
-          let y_mult = 100/range;
-          let x_mult = 100/force_max;
-          ctx.moveTo(force_max *x_mult, 0);
-
-          for (let delta=0; delta<=range; delta += step) {
-            let swept_force = Rr_force(shock_min+delta);
-            if (swept_force > force_max) swept_force = force_max;
-            if (swept_force < force_min) swept_force = force_min;
-            ctx.lineTo(swept_force *x_mult, delta *y_mult); 
-          }
-          ctx.stroke();
-
-          let current_force = Rr_force(current);
-          if (current_force > force_max) current_force = force_max;
-		      if (current_force < force_min) current_force = force_min;
-          ctx.setLineDash([5, 1]);
-          ctx.strokeStyle = "blue";
-          ctx.beginPath();
-          ctx.moveTo(current_force *x_mult, 100);
-          ctx.lineTo(current_force *x_mult, 0);
-          ctx.stroke();
-
-          ctx.strokeStyle = "blue";
-          ctx.beginPath();
-          ctx.moveTo(0, (current-shock_min)*y_mult);
-          ctx.lineTo(current_force *x_mult +cross, (current-shock_min)*y_mult);
-          ctx.stroke();
-
-          ctx.font = "10px Arial";
-          let pct = 100 - (current-shock_min)/range*100;
-          ctx.beginPath();
-          ctx.fillText(current.toFixed(1) + ' mm', -20, (current-shock_min)*y_mult -cross)
-          ctx.fillText(pct.toFixed(1) + ' %', current_force *x_mult +(2*cross), (current-shock_min)*y_mult +3);
-          ctx.fillText(current_force.toFixed(1) + ' kg', current_force *x_mult -15, -5);
-          ctx.fillText(rear_force.pbase.toFixed(1) + ' kg base', current_force *x_mult -15, 110);
-          ctx.fillText(rear_force.ptransfer.toFixed(1) + ' kg transfer', current_force *x_mult -15, 120);
-          ctx.fillText(rear_force.pdrive.toFixed(1) + ' kg drive', current_force *x_mult -15, 130);
-          ctx.fillText(rear_force.pchain.toFixed(1) + ' kg chain', current_force *x_mult -15, 140);
-
-          ctx.globalAlpha = 1;
-          void ctx.setTransform(old);
-        }
+		ctx.globalAlpha = 1;
+		void ctx.setTransform(old);
+	}
 
       // Construction functions
         function build_CofG() {
@@ -1022,14 +1053,17 @@
             let ang1 = Math.atan(acc.forward);	// in rad
             let mag1 = mass.total / Math.cos(ang1);
             let temp2 = vector({len:mag1, ang: +270 +deg(ang1)}, deg(-ang1), COFG, draw);
-
+	/*
             front_force.perror =	(Fr_force(length.front) / motion_ratio[0].len) - front_force.pvector;
             rear_force.perror = 	(Rr_force(length.rear) 	/ motion_ratio[1].len) - rear_force.pvector;
             
             let damping = 0.5;
             length.front += damping * front_force.perror 	/ (shock_rate_front / motion_ratio[0].len);
             length.rear += 	damping *	rear_force.perror 	/	(shock_rate_rear 	/ motion_ratio[1].len );
-            
+        */    
+		length.front = Fr_length(front_force.pvector * motion_ratio[0].len).length;
+		length.rear  = Rr_length(rear_force.pvector  * motion_ratio[1].len).length;
+      
             // renders the diagram based on front & rear shock length as parameters
             build_all();
           }
@@ -1048,7 +1082,12 @@
           }
           document.getElementById("results").innerHTML = temp;
         }
-
+	
+	length.Fr_shock_min = Math.floor(Fr_length(1000).length); // 1000kg compressed
+	length.Fr_shock_max = Math.ceil(Fr_length(-200).length); // -200kg extended
+	length.Rr_shock_min = Math.floor(Rr_length(1000).length); // 1000kg compressed
+	length.Rr_shock_max = Math.ceil(Rr_length(-200).length); // -200kg extended
+	
         render();
 
         slider.oninput = function() {
