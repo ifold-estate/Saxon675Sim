@@ -577,7 +577,7 @@ $(document).ready(function() {
 		ctx.globalCompositeOperation='source-over';
   }
 	function drawFrontGraph(shock, current) {
-		let x_shift = 1; let y_shift = 1;
+		let x_shift = 1.5; let y_shift = 1;
 		let size = 100;
 		let step=1;
 		     
@@ -598,7 +598,7 @@ $(document).ready(function() {
 		let x_mult = 100/range;
 	
 		ctx.beginPath();
-		ctx.moveTo(shock[0].force*x_mult, (shock[0].length-shock[0].length)*y_mult);
+		ctx.moveTo(100, 0);
 		for (let p=1; p< shock.length; p++) {
 			ctx.strokeStyle =  shock[p].color;
 			let x = limit(shock[p].force*x_mult, 0, 100);
@@ -639,7 +639,7 @@ $(document).ready(function() {
 		void ctx.setTransform(old);
 	}
 	function drawRearGraph(shock, current) {
-		let x_shift = 16; let y_shift = 1;
+		let x_shift = 16.5; let y_shift = 1;
 		let size = 100;
 		let step=1;
 		     
@@ -660,7 +660,7 @@ $(document).ready(function() {
 		let x_mult = 100/range;
 		
 		ctx.beginPath();
-		ctx.moveTo(shock[0].force*x_mult, (shock[0].length-shock[0].length)*y_mult);
+		ctx.moveTo(100, 0);
 		
 		for (let p=1; p< shock.length; p++) {
 			ctx.strokeStyle =  shock[p].color;
