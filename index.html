@@ -80,7 +80,7 @@
         var FWS, RWS, FCP, RCP, ECCEN_IN, ECCEN_OUT, TOP, PIVOT, P_UP_FR, P_UP_RR, SPROCKET, COFG; // Global x,y points
         var frame = [], saxtrak = [], stanchion = [], sliders = [], yoke = [];
         var beam =  [], linkage = [], swingarm = [];
-
+	var frontShock; var rearShock;
         const nothing = {len:0, ang:0};
         const delta =   {len:5, ang:0};
 
@@ -125,141 +125,98 @@
         }
 
       // Suspension functions	
-        function spring(spring, length) {
-          let force = 0;
-          let body = spring.base + spring.plunger + spring.preload;
-          let gap = length - body;
-          if (spring.rate < 0) {
-            gap = body - length; // this is the top-out spring
-            spring.rate = spring.rate;
-          }
+      function build_shock(spring, preload, adjuster, main=297, topout=291, bump=254) {
+		// assumes params for bump-stop and top-out spring are same front and back
+		// variables are main spring rate, preload setting, length adjuster, plus ... 
+		// length where each spring is engaged. free length 
+		// spring is main spring rate in kg/mm
+		// preload is mm of compression of main spring from its free length
+		// adjuster is mm of thread visible
+		
+		// Existing rear shock with 0mm adjuster and 20mm preload on 10kg/mm spring
+		// 249mm = 710kg
+		// 254mm = 630kg
+		// 291mm = 260kg
+		// 299mm = 144kg
+		let points = [];
+		let point = {length:0, force:0, rate:0, color:'blue', text:'topout'} // length & force are x,y co-ords of the point of inflection
+		/*
+		let Main = {
+      base: 47,
+      plunger: 80,
+      preload: 20,	// <- variable
+      free: 170,
+      crushed: 80,	// should never reach this point. redundant
+      rate: 10			// <- variable
+    };
+    let Top_out = {
+      base: 150,
+      plunger: 177,
+      preload: 0,
+      free: 36,
+      crushed: 28,
+      rate: 4.5
+    };
+    let Bump_stop = {
+      base: 65,
+      plunger: 177,
+      preload: 0,
+      free: 12,
+      crushed: 7,
+      rate: 6
+    };
+		*/
 
-          force = spring.rate * (spring.free - gap);
-          if (gap >= spring.free) force = 0;
-          if (gap <= spring.crushed) force = (spring.rate * 100) * (spring.free - gap);
+		let len4 = topout+8 +adjuster; //(Top_out.base + Top_out.plunger - Top_out.crushed + adjuster); 
+		let len3 = topout		+adjuster; //(Top_out.base + Top_out.plunger - Top_out.free + adjuster); 			//measured free length WITHOUT main spring
+		let len2 = bump			+adjuster; //(Bump_stop.base + Bump_stop.plunger + Bump_stop.free + adjuster); 
+		let len1 = bump-5		+adjuster; //(Bump_stop.base + Bump_stop.plunger + Bump_stop.crushed + adjuster); 
+		
+		let rate3 = (spring+4.5); //Top_out.rate);
+		let rate2 = spring;
+		let rate1 = (spring+6.0); //Bump_stop.rate)
+		
+		let f3 = ((main + preload + adjuster) -len3) * spring; // ((Main.base + Main.plunger + Main.free + preload + adjuster) -len3) * spring; 
+		let f2 = f3 + (len3-len2)* rate2; //(len3-len2) * rate3; 
+		let f1 = f2 + (len2-len1)* rate1; 
+		let f4 = f3 + (len3-len4)* rate3; 
 
-          return force;
-        }
-        function Fr_force(length) {
-          let adjuster = 5; // mm
-          let Front_Main = {
-            base: 47,
-            plunger: 80,
-            preload: 20,
-            free: 170,
-            crushed: 80,
-            rate: 10
-          };
-          let Front_Top_out = {
-            base: 150,
-            plunger: 177,
-            preload: 0,
-            free: 36,
-            crushed: 28,
-            rate: -4.5
-          };
-          let Front_Bump_stop = {
-            base: 65,
-            plunger: 177,
-            preload: 0,
-            free: 12,
-            crushed: 7,
-            rate: 6
-          };
-          let force = spring(Front_Main, length - adjuster) +
-                        spring(Front_Top_out, length - adjuster) +
-                        spring(Front_Bump_stop, length - adjuster);
-          return force;
-        }
-        function Rr_force(length) {
-          let adjuster = 15; // mm
-          let Rear_Main = {
-            base: 47,
-            plunger: 80,
-            preload: 20,
-            free: 170,
-            crushed: 80,
-            rate: 10
-          };
-          let Rear_Top_out = {
-            base: 150,
-            plunger: 177,
-            preload: 0,
-            free: 36,
-            crushed: 28,
-            rate: -4.5
-          };
-          let Rear_Bump_stop = {
-            base: 65,
-            plunger: 177,
-            preload: 0,
-            free: 12,
-            crushed: 7,
-            rate: 6
-          };
-          let force = spring(Rear_Main, length - adjuster) +
-                        spring(Rear_Top_out, length - adjuster) +
-                        spring(Rear_Bump_stop, length - adjuster);
-          return force;
-        }
-	function Fr_length(force) {
-	let shortest = 240; let middle = 285; let longest = 330;
-	let Fs=0; let Fm=0; let Fl=0;
-	let rate = -10;
-	let i = 20;
-	do {
-		Fs = Fr_force(shortest);
-		Fm = Fr_force(middle);
-		Fl = Fr_force(longest);
-		rate = (Fl - Fs) / (longest-shortest);
-
-		if ((force<=Fs) && (force>=Fm)) {	//result is in first half between short & middle
-			longest = middle;
-			rate = (Fm - Fs) / (middle-shortest)
-		}
-		else if ((force<Fm) && (force>=Fl)) {	// result is in second half
-			shortest = middle;
-			rate = (Fl - Fm) / (longest-middle)
-		}
-		else {		// result was not in range
-			shortest -= 10;
-			longest += 10;
-		}
-		middle = (longest + shortest) /2;
-		if (Math.abs(Fm-force) < 0.05) break
-		i--;
-	} while (i > 0)
-	return {length:middle, rate:rate, i};
+		// points [0] and [5] are to allow >< lookups
+		// points [1] to [4] are also helpful to plot the graph
+		points[0] = {length: len1, force:+2000, rate:1000, 	color:0xFF0000, text:'fully crushed'};
+		points[1] = {length: len1, force: f1, 	rate:rate1, color:'orange', text:'in bump stop'};
+		points[2] = {length: len2, force: f2, 	rate:rate2, color:0x00FF00, text:'linear region'};
+		points[3] = {length: len3, force: f3, 	rate:rate3,	color:'orange', text:'in top-out'};
+		points[4] = {length: len4, force: f4, 	rate:1000, 	color:'red', 		text:'fully extended'};
+		points[5] = {length: len4, force:-1000, rate:1000, 	color:'red', 		text:'fully extended'};
+		return points	
 	}
-	function Rr_length(force) {
-	let shortest = 240; let middle = 285; let longest = 330;
-	let Fs=0; let Fm=0; let Fl=0;
-	let rate = -10;
-	let i = 20;
-	do {
-		Fs = Rr_force(shortest);
-		Fm = Rr_force(middle);
-		Fl = Rr_force(longest);
-		rate = (Fl - Fs) / (longest-shortest);
-
-		if ((force<=Fs) && (force>=Fm)) {	//result is in first half between short & middle
-			longest = middle;
-			rate = (Fm - Fs) / (middle-shortest)
+	function Shockcurve(thisShock, input) {
+		let lastPoint; // length & force are x,y co-ords of the point of inflection
+		let nextPoint; // length & force are x,y co-ords of the point of inflection
+		let thisPoint; // = {length:0, force:0, rate:0, color:'blue', text:'blank'}; // length & force are x,y co-ords of the point of inflection
+	
+		lastPoint = thisShock[0];
+		for (let y=1; y<thisShock.length; y++) {
+			nextPoint = thisShock[y];
+			if ((nextPoint.length > input.length) || (nextPoint.force < input.force)) break
+			lastPoint = nextPoint;	
 		}
-		else if ((force<Fm) && (force>=Fl)) {	// result is in second half
-			shortest = middle;
-			rate = (Fl - Fm) / (longest-middle)
+		
+		thisPoint = {rate:lastPoint.rate, color:lastPoint.color, text:lastPoint.text};
+		if (typeof input.force === 'undefined') {
+			thisPoint.force = lastPoint.force - (input.length-lastPoint.length)*lastPoint.rate;
+			thisPoint.length = input.length;
+			//console.log('force was undefined');
 		}
-		else {		// result was not in range
-			shortest -= 10;
-			longest += 10;
+		if (typeof input.length === 'undefined') {
+			thisPoint.length = lastPoint.length - (input.force-lastPoint.force)/lastPoint.rate;
+			thisPoint.force = input.force;
+			//console.log('length was undefined');
 		}
-		middle = (longest + shortest) /2;
-		if (Math.abs(Fm-force) < 0.05) break
-		i--;
-	} while (i > 0)
-	return {length:middle, rate:rate, i};
+		return thisPoint
 	}
+
         function vector(input_vector, rotation, position={x:0, y:0}, draw=0) { 
           let input_xy = xy(input_vector);
           let relative = xy({len: input_vector.len, ang: +rotation});
@@ -477,111 +434,123 @@
 
 		ctx.globalCompositeOperation='source-over';
         }
-	function drawFrontGraph(current) {
-		let x_shift = 2; let y_shift = 1;
+
+	function drawFrontGraph(shock, current) {
+		let x_shift = 1; let y_shift = 1;
 		let size = 100;
 		let step=1;
-		
-		let range = length.Fr_shock_max - length.Fr_shock_min;
+		     
+		let stroke = shock[5].length - shock[0].length;	
+		let range = 1000;
 		let cross = 5;
 
-		let scale = (1000/22)*(4/100);
+		let scale = (1000/22)*(4/100);	// canvas is 1000px scaled to 22 grid lines. Graph viewpoer is 100px over 4 grid lines
 		let old = ctx.getTransform();
-		void ctx.setTransform(scale, 0, 0, scale, (1000/22*x_shift), (1000/22*y_shift));
+		void ctx.setTransform(scale, 0, 0, scale, (1000/22*x_shift), (1000/22*y_shift)); // x & y must be scaled equally for text
 		
 		ctx.globalAlpha = 1;
-    		ctx.setLineDash([10, 0]);
-    		ctx.strokeStyle = "red";
-    		ctx.lineWidth = 1;
+	    ctx.setLineDash([10, 0]);
+	    ctx.strokeStyle = "red";
+	    ctx.lineWidth = 1;
 
-		let y_mult = size/range;
-		let x_mult = 2*size/(Fr_force(length.Fr_shock_min)-Fr_force(length.Fr_shock_max));
-    		ctx.beginPath();
-		ctx.moveTo(Fr_force(length.Fr_shock_min) *x_mult,0);
-		
-		for (let delta=0; delta<=range; delta += step) {
-			let swept_force = Fr_force(length.Fr_shock_min+delta);
-			ctx.lineTo(swept_force *x_mult, delta *y_mult); 
+		let y_mult = 100/stroke;
+		let x_mult = 100/range;
+	
+		ctx.beginPath();
+		ctx.moveTo(shock[0].force*x_mult, (shock[0].length-shock[0].length)*y_mult);
+		for (let p=1; p< shock.length; p++) {
+			ctx.strokeStyle =  shock[p].color;
+			let x = limit(shock[p].force*x_mult, 0, 100);
+			let y = limit((shock[p].length-shock[0].length )*y_mult, 0, 100);
+			ctx.lineTo(x, y);
 		}
 		ctx.stroke();
-		
-		let current_force = Fr_force(current);
+
+		let current_force = Shockcurve(shock, {length:current}).force;
+		let x = limit(current_force*x_mult, 0, 100);
+		ctx.beginPath();
 		ctx.setLineDash([5, 1]);
 		ctx.strokeStyle = "blue";
-		ctx.beginPath();
-    		ctx.moveTo(current_force *x_mult, 100);
-		ctx.lineTo(current_force *x_mult, 0);
+    		ctx.moveTo(x, 100);
+		ctx.lineTo(x,   0);
 		ctx.stroke();
 		
 		ctx.strokeStyle = "blue";
 		ctx.beginPath();
-    		ctx.moveTo(0, (current-length.Fr_shock_min)*y_mult);
-		ctx.lineTo(current_force *x_mult +cross, (current-length.Fr_shock_min)*y_mult);
+    		ctx.moveTo(0, 				(current-shock[0].length)*y_mult);
+		ctx.lineTo(x +cross, 	(current-shock[0].length)*y_mult);
 		ctx.stroke();
 		
 		ctx.font = "10px Arial";
-		let pct = 100 - (current-length.Fr_shock_min)/range*100;
+		let pct = 100 - (current-shock[0].length)/stroke*100;
 		ctx.beginPath();
-		ctx.fillText(current.toFixed(1) + ' mm', -20, (current-length.Fr_shock_min)*y_mult -cross)
-		ctx.fillText(pct.toFixed(1) + ' %', current_force *x_mult +(2*cross), (current-length.Fr_shock_min)*y_mult +3);
-		ctx.fillText(current_force.toFixed(1) + ' kg', current_force *x_mult -15, -5);
-    		ctx.fillText(front_force.pbase.toFixed(1) + ' kg base', current_force *x_mult -15, 110);
-    		ctx.fillText(front_force.ptransfer.toFixed(1) + ' kg transfer', current_force *x_mult -15, 120);
-		ctx.fillText(front_force.pbrake.toFixed(1) + ' kg brake', current_force *x_mult -15, 130);
+		ctx.fillText(current.toFixed(1) + ' mm', -20, (current-shock[0].length)*y_mult -cross)
+		ctx.fillText(pct.toFixed(1) + ' %', x +(2*cross), (current-shock[0].length)*y_mult +3);
+		ctx.fillText(current_force.toFixed(1) + ' kg', x -15, -5);
+    		ctx.fillText(front_force.pbase.toFixed(1) + ' kg base', x -15, 110);
+    		ctx.fillText(front_force.ptransfer.toFixed(1) + ' kg transfer', x -15, 120);
+		ctx.fillText(front_force.pbrake.toFixed(1) + ' kg brake', x -15, 130);
+		
     		ctx.globalAlpha = 1;
 		void ctx.setTransform(old);
 	}
-	function drawRearGraph(current) {
+	function drawRearGraph(shock, current) {
 		let x_shift = 16; let y_shift = 1;
 		let size = 100;
 		let step=1;
 
-		let range = length.Rr_shock_max - length.Rr_shock_min;
+		let stroke = shock[5].length - shock[0].length;	
+		let range = 1000;
 		let cross = 5;
 
-		let scale = (1000/22)*(4/100);
+		let scale = (1000/22)*(4/100);	// canvas is 1000px scaled to 22 grid lines. Graph viewpoer is 100px over 4 grid lines
 		let old = ctx.getTransform();
-		void ctx.setTransform(scale, 0, 0, scale, (1000/22*x_shift), (1000/22*y_shift));
-		
-		ctx.globalAlpha = 1;
-	    	ctx.setLineDash([10, 0]);
-	    	ctx.strokeStyle = "red";
-	    	ctx.lineWidth = 1;
+		void ctx.setTransform(scale, 0, 0, scale, (1000/22*x_shift), (1000/22*y_shift)); // x & y must be scaled equally for text
 
-		let y_mult = size/range;
-		let x_mult = 2*size/(Rr_force(length.Rr_shock_min)-Rr_force(length.Rr_shock_max));
-    		ctx.moveTo(Rr_force(length.Rr_shock_min) *x_mult, 0);
+		ctx.globalAlpha = 1;
+	    ctx.setLineDash([10, 0]);
+	    ctx.strokeStyle = "red";
+	    ctx.lineWidth = 1;
+
+		let y_mult = 100/stroke;
+		let x_mult = 100/range;
 		
-		for (let delta=0; delta<=range; delta += step) {
-			let swept_force = Rr_force(length.Rr_shock_min+delta);
-			ctx.lineTo(swept_force *x_mult, delta *y_mult); 
+		ctx.beginPath();
+		ctx.moveTo(shock[0].force*x_mult, (shock[0].length-shock[0].length)*y_mult);
+		
+		for (let p=1; p< shock.length; p++) {
+			ctx.strokeStyle =  shock[p].color;
+			let x = limit(shock[p].force*x_mult, 0, 100);
+			let y = limit((shock[p].length-shock[0].length )*y_mult, 0, 100);
+			ctx.lineTo(x, y);
 		}
 		ctx.stroke();
 		
-		let current_force = Rr_force(current);
+		let current_force = Shockcurve(shock, {length:current}).force;
+		let x = limit(current_force*x_mult, 0, 100);
+		ctx.beginPath();
 		ctx.setLineDash([5, 1]);
 		ctx.strokeStyle = "blue";
-		ctx.beginPath();
-    		ctx.moveTo(current_force *x_mult, 100);
-		ctx.lineTo(current_force *x_mult, 0);
+    		ctx.moveTo(x, 100);
+		ctx.lineTo(x,   0);
 		ctx.stroke();
 		
 		ctx.strokeStyle = "blue";
 		ctx.beginPath();
-    		ctx.moveTo(0, (current-length.Rr_shock_min)*y_mult);
-		ctx.lineTo(current_force *x_mult +cross, (current-length.Rr_shock_min)*y_mult);
+    		ctx.moveTo(0, 				(current-shock[0].length)*y_mult);
+		ctx.lineTo(x +cross, 	(current-shock[0].length)*y_mult);
 		ctx.stroke();
 		
 		ctx.font = "10px Arial";
-		let pct = 100 - (current-length.Rr_shock_min)/range*100;
+		let pct = 100 - (current-shock[0].length)/stroke*100;
 		ctx.beginPath();
-		ctx.fillText(current.toFixed(1) + ' mm', -20, (current-length.Rr_shock_min)*y_mult -cross)
-		ctx.fillText(pct.toFixed(1) + ' %', current_force *x_mult +(2*cross), (current-length.Rr_shock_min)*y_mult +3);
-		ctx.fillText(current_force.toFixed(1) + ' kg', current_force *x_mult -15, -5);
-    		ctx.fillText(rear_force.pbase.toFixed(1) + ' kg base', current_force *x_mult -15, 110);
-    		ctx.fillText(rear_force.ptransfer.toFixed(1) + ' kg transfer', current_force *x_mult -15, 120);
-		ctx.fillText(rear_force.pdrive.toFixed(1) + ' kg drive', current_force *x_mult -15, 130);
-		ctx.fillText(rear_force.pchain.toFixed(1) + ' kg chain', current_force *x_mult -15, 140);
+		ctx.fillText(current.toFixed(1) + ' mm', -20, (current-shock[0].length)*y_mult -cross)
+		ctx.fillText(pct.toFixed(1) + ' %', x +(2*cross), (current-shock[0].length)*y_mult +3);
+		ctx.fillText(current_force.toFixed(1) + ' kg', x -15, -5);
+    		ctx.fillText(rear_force.pbase.toFixed(1) + ' kg base', x -15, 110);
+    		ctx.fillText(rear_force.ptransfer.toFixed(1) + ' kg transfer', x -15, 120);
+		ctx.fillText(rear_force.pdrive.toFixed(1) + ' kg drive', x -15, 130);
+		ctx.fillText(rear_force.pchain.toFixed(1) + ' kg chain', x -15, 140);
 
 		ctx.globalAlpha = 1;
 		void ctx.setTransform(old);
@@ -911,22 +880,24 @@
           */
           return join(position, xy({len: (radius1 - compliance), ang: 270}));
         }
-        function build_front(shock) {
-          build_saxtrak(shock);	
-          build_forks();
-          FCP = build_wheel(FWS, 3.5, 70, 10);
-          CofG[4] = FWS; CofG[4].mass = mass.front;
-        }
-        function build_rear(shock) {
-          build_linkage(shock);
-          build_swingarm();
-          RCP = build_wheel(RWS, 5.5, 55, 10);	// Rear Contact Patch, based on spindle and tyre geometry
-          CofG[5] = RWS; CofG[5].mass = mass.rear;
-
-          let temp = polar(SPROCKET, RWS);
-          let chain = {x: temp.len, y: (radius.sprocket_rr - radius.sprocket_fr)};
-          ang.chain = polar(chain).ang + temp.ang;	
-        }
+	function build_front(shock_length) {
+		frontShock = build_shock(10, 29, 5, 297, 291, 254);
+		build_saxtrak(shock_length);	
+		build_forks();
+		FCP = build_wheel(FWS, 3.5, 70, 10);
+		CofG[4] = FWS; CofG[4].mass = mass.front;
+	}
+	function build_rear(shock_length) {
+		rearShock = build_shock(10, 29, 15, 297, 291, 254);
+		build_linkage(shock_length);
+		build_swingarm();
+		RCP = build_wheel(RWS, 5.5, 55, 10);	// Rear Contact Patch, based on spindle and tyre geometry
+		CofG[5] = RWS; CofG[5].mass = mass.rear;
+		
+		let temp = polar(SPROCKET, RWS);
+		let chain = {x: temp.len, y: (radius.sprocket_rr - radius.sprocket_fr)};
+		ang.chain = polar(chain).ang + temp.ang;	
+	}
         function build_all() {
           build_frame(ang.frame);			 // Must be called first to setup main xy locations
           build_front(length.front);
@@ -1060,10 +1031,13 @@
             let damping = 0.5;
             length.front += damping * front_force.perror 	/ (shock_rate_front / motion_ratio[0].len);
             length.rear += 	damping *	rear_force.perror 	/	(shock_rate_rear 	/ motion_ratio[1].len );
-        */    
+           
 		length.front = Fr_length(front_force.pvector * motion_ratio[0].len).length;
 		length.rear  = Rr_length(rear_force.pvector  * motion_ratio[1].len).length;
-      
+	*/ 
+      		length.front  = Shockcurve(frontShock, {force:(front_force.pvector  * motion_ratio[0].len)}).length;
+		length.rear  =  Shockcurve( rearShock, {force:( rear_force.pvector  * motion_ratio[1].len)}).length;
+			
             // renders the diagram based on front & rear shock length as parameters
             build_all();
           }
@@ -1082,12 +1056,7 @@
           }
           document.getElementById("results").innerHTML = temp;
         }
-	
-	length.Fr_shock_min = Math.floor(Fr_length(1000).length); // 1000kg compressed
-	length.Fr_shock_max = Math.ceil(Fr_length(-200).length); // -200kg extended
-	length.Rr_shock_min = Math.floor(Rr_length(1000).length); // 1000kg compressed
-	length.Rr_shock_max = Math.ceil(Rr_length(-200).length); // -200kg extended
-	
+
         render();
 
         slider.oninput = function() {
