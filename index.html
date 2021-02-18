@@ -37,30 +37,32 @@
     
     <script src="https://code.jquery.com/jquery-1.9.1.min.js"></script>
     <script>
-      // TO-DO List
-      // Option to exit loop when error is small enough
-      // visual indicator of convergence
-      // arrows to indicate forces (sign, magnitude and angle)
-      // tyre flat spots based on loads vs psi
-      // improve shock images
-      // overlay real images
-      // text boxes for parameter inputs
-      // sliders & toggle buttons for some variables
-      // separate file for parameters. Save and recall
-      // Bug: FCP & RCP go bad for extreme acc. Seems to be effect of non-linearity in the shock curve 
+  // CofG for bike & fuel & rider need to rotate relative to frame
+// Add chain pull
+// Option to exit loop when error is small enough
+// visual indicator of convergence
+// arrows to indicate forces (sign, magnitude and angle)
+// tyre flat spots based on loads vs psi
+// improve shock images
+// overlay real images
+// text boxes for inputs and outputs
+// sliders for some variables
+// separate file for parameters
+// rounding of output values
+// FCP & RCP go bad for extreme acc
 
-      $(document).ready(function() {
+$(document).ready(function() {
 
-        var radius = { front: 280, rear: 300, eccentric: 40,
-          sprocket_fr: (15 * 15.88 / 2 / Math.PI),
-          sprocket_rr: 49 * 15.88 / 2 / Math.PI
-        };
-        var CofG = [];
-        var mass = {total: 250, frame:120, fuel:15, rider:110, front:20, rear:25};
-	var length = {
-    		front: 290,		// front shock length
-    		head: 330,		// Steering head, separation between bearings
-    		rear: 330,		// rear shock length
+  var radius = { front: 280, rear: 300, eccentric: 40,
+    sprocket_fr: (15 * 15.88 / 2 / Math.PI),
+    sprocket_rr: 49 * 15.88 / 2 / Math.PI
+  };
+	var CofG = [];
+	var mass = {total: 250, frame:120, fuel:15, rider:110, front:20, rear:25};
+  var length = {
+    front: 290,		// front shock length
+    head: 330,		// Steering head, separation between bearings
+    rear: 330,		// rear shock length
 		gap: 330,
 		wheelbase: 1420,
 		trail: 0,
@@ -68,64 +70,204 @@
 		Fr_shock_max:350,
 		Rr_shock_min:200,
 		Rr_shock_max:350,
-    		swingarm_pickup: 200	// length of pickup. Needs to be global to align link & swingarm 
-  	};
-        var ang = { frame: -27, eccen: 0,
-                    front: 0, shock_fr: 0, rake: 0, forks: 0,
-                    rear: 0, shock_rr: 0, beam: 0, link: 0, chain: 0 };
-        var front_force = {vbase:0, vtransfer:0, perror:0, pbase:0, ptransfer:0, pbrake:0};
-        var rear_force =  {vbase:0, vtransfer:0, perror:0, pbase:0, ptransfer:0, pdrive:0, pchain:0};
-        var motion_ratio = [];
-        var acc = { forward: 0.0, side: 0 };
-        var FWS, RWS, FCP, RCP, ECCEN_IN, ECCEN_OUT, TOP, PIVOT, P_UP_FR, P_UP_RR, SPROCKET, COFG; // Global x,y points
-        var frame = [], saxtrak = [], stanchion = [], sliders = [], yoke = [];
-        var beam =  [], linkage = [], swingarm = [];
+    swingarm_pickup: 200	// length of pickup. Needs to be global to align link & swingarm 
+  };
+  var ang = { frame: -27, eccen: 0,
+							front: 0, shock_fr: 0, rake: 0, forks: 0,
+    					rear: 0, shock_rr: 0, beam: 0, link: 0, chain: 0 };
+	var front_force = {vbase:0, vtransfer:0, perror:0, pbase:0, ptransfer:0, pbrake:0};
+	var rear_force =  {vbase:0, vtransfer:0, perror:0, pbase:0, ptransfer:0, pdrive:0, pchain:0};
+	var motion_ratio = [];
+  var acc = { forward: 0.0, side: 0 };
+  var FWS, RWS, FCP, RCP, ECCEN_IN, ECCEN_OUT, TOP, PIVOT, P_UP_FR, P_UP_RR, SPROCKET, COFG; // Global x,y points
+  var frame = [], saxtrak = [], stanchion = [], sliders = [], yoke = [];
+	var beam =  [], linkage = [], swingarm = [];
 	var frontShock; var rearShock;
-        const nothing = {len:0, ang:0};
-        const delta =   {len:5, ang:0};
+	const nothing = {len:0, ang:0};
+	const delta =   {len:5, ang:0};
+	
+	var canvas = document.getElementById("myFrame"); 
+	var ctx = canvas.getContext("2d");
+  var slider = document.getElementById("myAccel");
+  var output = document.getElementById("results");
+	var text = [];
+	
+// Helper functions
+  function deg(rad) {
+    return (rad * 360 / 2 / Math.PI);
+  }
+  function rad(deg) {
+    return (deg / 360 * 2 * Math.PI);
+  }
+  function cosine(a, b, C) {
+    // c2 = a2 + b2 − 2ab cos(C)
+    return Math.pow(Math.pow(a, 2) + Math.pow(b, 2) - 2 * a * b * Math.cos(C), 0.5);
+  }
+  function acosine(a, b, c) {
+    // cos(C) = (a2 + b2 - c2)/(2*a*b)
+    return Math.acos(((Math.pow(a, 2) + Math.pow(b, 2) - Math.pow(c, 2)) / (2 * a * b)));
+  }
+	function polar(a, b = {x:0, y:0}) {
+    let x = (a.x - b.x);
+		let y = (a.y - b.y);
+		let length = Math.pow( Math.pow(x, 2) + Math.pow(y, 2), 0.5);
+		let angle = deg(Math.acos(x / length));
+		if (Math.asin(y/ length) <0) angle = 360 - angle;
+		
+		return {len: length, ang: angle};
+  }
+  function xy(input) { // takes input as polar with .len & .ang, converts to cartesian
+    let ang = input.ang * 2 * Math.PI / 360;
+    let output = {x: (input.len * Math.cos(ang)) , y: (input.len * Math.sin(ang)) };
+		return output;
+  }
+  function join(a, b) {
+    let output = {x: (a.x + b.x), y: (a.y + b.y) };
+    return output;
+  }
+	function limit(val, min, max) {
+    return val > max ? max : val < min ? min : val;
+}
+	
+// Suspension functions	
+/*
+	function spring(spring, length) {
+    let force = 0;
+    let body = spring.base + spring.plunger + spring.preload;
+    let gap = length - body;
+    if (spring.rate < 0) {
+			gap = body - length; // this is the top-out spring
+			spring.rate = spring.rate;
+		}
 
-        var canvas = document.getElementById("myFrame"); 
-        var ctx = canvas.getContext("2d");
-        var slider = document.getElementById("myAccel");
-        var output = document.getElementById("results");
-        var text = [];
+    force = spring.rate * (spring.free - gap);
+    if (gap >= spring.free) force = 0;
+    if (gap <= spring.crushed) force = (spring.rate * 12) * (spring.free - gap);
 
-      // Helper functions
-        function deg(rad) {
-          return (rad * 360 / 2 / Math.PI);
-        }
-        function rad(deg) {
-          return (deg / 360 * 2 * Math.PI);
-        }
-        function cosine(a, b, C) {
-          // c2 = a2 + b2 − 2ab cos(C)
-          return Math.pow(Math.pow(a, 2) + Math.pow(b, 2) - 2 * a * b * Math.cos(C), 0.5);
-        }
-        function acosine(a, b, c) {
-          // cos(C) = (a2 + b2 - c2)/(2*a*b)
-          return Math.acos(((Math.pow(a, 2) + Math.pow(b, 2) - Math.pow(c, 2)) / (2 * a * b)));
-        }
-        function polar(a, b = {x:0, y:0}) {
-          let x = (a.x - b.x);
-          let y = (a.y - b.y);
-          let length = Math.pow( Math.pow(x, 2) + Math.pow(y, 2), 0.5);
-          let angle = deg(Math.acos(x / length));
-          if (Math.asin(y/ length) <0) angle = 360 - angle;
-
-          return {len: length, ang: angle};
-        }
-        function xy(input) { // takes input as polar with .len & .ang, converts to cartesian
-          let ang = input.ang * 2 * Math.PI / 360;
-          let output = {x: (input.len * Math.cos(ang)) , y: (input.len * Math.sin(ang)) };
-          return output;
-        }
-        function join(a, b) {
-          let output = {x: (a.x + b.x), y: (a.y + b.y) };
-          return output;
-        }
-
-      // Suspension functions	
-      function build_shock(spring, preload, adjuster, main=297, topout=291, bump=254) {
+    return force;
+  }
+  function Fr_force(length) {
+    let adjuster = 5; // mm
+    let Front_Main = {
+      base: 47,
+      plunger: 80,
+      preload: 20,
+      free: 170,
+      crushed: 80,
+      rate: 10
+    };
+    let Front_Top_out = {
+      base: 150,
+      plunger: 177,
+      preload: 0,
+      free: 36,
+      crushed: 28,
+      rate: -4.5
+    };
+    let Front_Bump_stop = {
+      base: 65,
+      plunger: 177,
+      preload: 0,
+      free: 12,
+      crushed: 7,
+      rate: 6
+    };
+    let force = spring(Front_Main, length - adjuster) +
+      						spring(Front_Top_out, length - adjuster) +
+      						spring(Front_Bump_stop, length - adjuster);
+    return force;
+  }
+	function Rr_force(length) {
+    let adjuster = 15; // mm
+    let Rear_Main = {
+      base: 47,
+      plunger: 80,
+      preload: 20,
+      free: 170,
+      crushed: 80,
+      rate: 10
+    };
+    let Rear_Top_out = {
+      base: 150,
+      plunger: 177,
+      preload: 0,
+      free: 36,
+      crushed: 28,
+      rate: -4.5
+    };
+    let Rear_Bump_stop = {
+      base: 65,
+      plunger: 177,
+      preload: 0,
+      free: 12,
+      crushed: 7,
+      rate: 6
+    };
+    let force = spring(Rear_Main, length - adjuster) +
+									spring(Rear_Top_out, length - adjuster) +
+									spring(Rear_Bump_stop, length - adjuster);
+    return force;
+  }
+	function Fr_length(force) {
+		let shortest = 240; let middle = 285; let longest = 330;
+		let Fs=0; let Fm=0; let Fl=0;
+		let rate = -10;
+		let i = 20;
+		do {
+			Fs = Fr_force(shortest);
+			Fm = Fr_force(middle);
+			Fl = Fr_force(longest);
+			rate = (Fl - Fs) / (longest-shortest);
+			
+			if ((force<=Fs) && (force>=Fm)) {	//result is in first half between short & middle
+				longest = middle;
+				rate = (Fm - Fs) / (middle-shortest)
+			}
+			else if ((force<Fm) && (force>=Fl)) {	// result is in second half
+				shortest = middle;
+				rate = (Fl - Fm) / (longest-middle)
+			}
+			else {		// result was not in range
+				shortest -= 10;
+				longest += 10;
+			}
+			middle = (longest + shortest) /2;
+			if (Math.abs(Fm-force) < 0.05) break
+			i--;
+		} while (i > 0)
+		return {length:middle, rate:rate, i};
+	}
+	function Rr_length(force) {
+		let shortest = 240; let middle = 285; let longest = 330;
+		let Fs=0; let Fm=0; let Fl=0;
+		let rate = -10;
+		let i = 20;
+		do {
+			Fs = Rr_force(shortest);
+			Fm = Rr_force(middle);
+			Fl = Rr_force(longest);
+			rate = (Fl - Fs) / (longest-shortest);
+			
+			if ((force<=Fs) && (force>=Fm)) {	//result is in first half between short & middle
+				longest = middle;
+				rate = (Fm - Fs) / (middle-shortest)
+			}
+			else if ((force<Fm) && (force>=Fl)) {	// result is in second half
+				shortest = middle;
+				rate = (Fl - Fm) / (longest-middle)
+			}
+			else {		// result was not in range
+				shortest -= 10;
+				longest += 10;
+			}
+			middle = (longest + shortest) /2;
+			if (Math.abs(Fm-force) < 0.05) break
+			i--;
+		} while (i > 0)
+		return {length:middle, rate:rate, i};
+	}
+*/	
+	function build_shock(spring, preload, adjuster, main=297, topout=291, bump=254) {
 		// assumes params for bump-stop and top-out spring are same front and back
 		// variables are main spring rate, preload setting, length adjuster, plus ... 
 		// length where each spring is engaged. free length 
@@ -217,224 +359,223 @@
 		return thisPoint
 	}
 
-        function vector(input_vector, rotation, position={x:0, y:0}, draw=0) { 
-          let input_xy = xy(input_vector);
-          let relative = xy({len: input_vector.len, ang: +rotation});
-          let adj =    xy({len: relative.x, ang: input_vector.ang +rotation});
-          let opp =    xy({len: relative.y, ang: input_vector.ang +rotation -90});
+	function vector(input_vector, rotation, position={x:0, y:0}, draw=0) { 
+		let input_xy = xy(input_vector);
+		let relative = xy({len: input_vector.len, ang: +rotation});
+		let adj =    xy({len: relative.x, ang: input_vector.ang +rotation});
+		let opp =    xy({len: relative.y, ang: input_vector.ang +rotation -90});
+		
+		let H, A, O;
+		if (draw >=1) {
+			ctx.strokeStyle = "blue";
+			ctx.lineWidth = 6;
+			ctx.globalAlpha = 1;
+			ctx.setLineDash([20, 10]);
+			H = join(position, input_xy);
+			ctx.beginPath();
+			ctx.moveTo(position.x, position.y);
+			ctx.lineTo(H.x, H.y);
+			ctx.stroke();
+		}
+		
+		if (draw >=2) {
+			A = join(position, adj);
+			ctx.beginPath();
+			ctx.strokeStyle = "red";
+			ctx.setLineDash([10, 0]);
+			
+			ctx.moveTo(position.x, position.y);
+			ctx.lineTo(A.x, A.y);
+			ctx.stroke();
+		}
+		
+		if (draw >=3) {
+			O = join(position, opp);
+			ctx.beginPath();
+			ctx.strokeStyle = "green";
+			ctx.moveTo(position.x, position.y);
+			ctx.lineTo(O.x, O.y);
+			ctx.stroke();
+		}
+		//console.log(input_xy, H, A, O);
+		ctx.setLineDash([10, 0]);
+		return relative;
+	}
+	
+// Rendering functions
+  function drawLine(canvasElem, x1, y1, x2, y2, color, lineWidth, dash = false) {
+    //var ctx = canvasElem.getContext("2d");
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.setLineDash([30, 0]);
+    if (dash == true) ctx.setLineDash([30, 20]);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.stroke();
+    ctx.setLineDash([30, 0]);
+  }
+  function setupTransform() {
+		let left = -1300;		let width = 2200;		let right = left+width;
+		let bottom = -500;	let height = 1500;	let top = 	bottom+height;
+		
+		let horizontal = { start: left, stop: (left+width) };
+    let vertical = { start: bottom, stop: (bottom+height)};
+		
+    let scaler = canvas.width / width;
+		// canvas.height = height*scaler;
+		
+    ctx.resetTransform();
+		void ctx.setTransform(scaler, 0, 0, -scaler, -left * scaler, top * scaler);
+	}
+	function drawGrid(base=-500) {
+		let left = -1300;		let width = 2200;		let right = left+width;
+		let bottom = -500;	let height = 1500;	let top = 	bottom+height;
+		
+		let horizontal = { start: left, stop: (left+width) };
+    let vertical = { start: bottom, stop: (bottom+height)};
+		
+    setupTransform();
+		ctx.clearRect(left, bottom, width, height);
+		
+    // draw horizontal lines
+    for (let i = bottom; i < top; i = i + 100) {
+      drawLine(canvas, left, i, right, i, "black", 0.4);
+    }
+    drawLine(canvas, left, 0, right, 0, "black", 1);
+		
+    // draw vertical lines
+    for (let j = left; j < right; j = j + 100) {
+      drawLine(canvas, j, bottom, j, top, "black", 0.4);
+    }
+    drawLine(canvas, 0, bottom, 0, top, "black", 1);
+  }
+  function drawComponent(points) {
+    // drawing a line
+    ctx.beginPath();
 
-          let H, A, O;
-          if (draw >=1) {
-            ctx.strokeStyle = "blue";
-            ctx.lineWidth = 4;
-            ctx.setLineDash([20, 10]);
-            H = join(position, input_xy);
-            ctx.beginPath();
-            ctx.moveTo(position.x, position.y);
-            ctx.lineTo(H.x, H.y);
-            ctx.stroke();
-          }
+    ctx.moveTo(points[0].x, points[0].y);
+		
+    for (i = 1; i < points.length; i++) {
+      if (points[i].geo == false) ctx.lineTo(points[i].x, points[i].y);
+    }
 
-          if (draw >=2) {
-            A = join(position, adj);
-            ctx.beginPath();
-            ctx.strokeStyle = "red";
-            ctx.setLineDash([10, 0]);
+    ctx.strokeStyle = "black";
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    ctx.fillStyle = "lightgrey";
+    ctx.fill();
 
-            ctx.moveTo(position.x, position.y);
-            ctx.lineTo(A.x, A.y);
-            ctx.stroke();
-          }
-
-          if (draw >=3) {
-            O = join(position, opp);
-            ctx.beginPath();
-            ctx.strokeStyle = "green";
-            ctx.moveTo(position.x, position.y);
-            ctx.lineTo(O.x, O.y);
-            ctx.stroke();
-          }
-          //console.log(input_xy, H, A, O);
-          ctx.setLineDash([10, 0]);
-          return relative;
-        }
-
-      // Rendering functions
-        function drawLine(canvasElem, x1, y1, x2, y2, color, lineWidth, dash = false) {
-          //var ctx = canvasElem.getContext("2d");
-          ctx.beginPath();
-          ctx.moveTo(x1, y1);
-          ctx.lineTo(x2, y2);
-          ctx.setLineDash([30, 0]);
-          if (dash == true) ctx.setLineDash([30, 20]);
-          ctx.strokeStyle = color;
-          ctx.lineWidth = lineWidth;
-          ctx.stroke();
-          ctx.setLineDash([30, 0]);
-        }
-        function setupTransform() {
-          let left = -1300;		let width = 2200;		let right = left+width;
-          let bottom = -500;	let height = 1500;	let top = 	bottom+height;
-
-          let horizontal = { start: left, stop: (left+width) };
-          let vertical = { start: bottom, stop: (bottom+height)};
-
-          let scaler = canvas.width / width;
-          // canvas.height = height*scaler;
-
-          ctx.resetTransform();
-          void ctx.setTransform(scaler, 0, 0, -scaler, -left * scaler, top * scaler);
-        }
-        function drawGrid(base=-500) {
-          let left = -1300;		let width = 2200;		let right = left+width;
-          let bottom = -500;	let height = 1500;	let top = 	bottom+height;
-
-          let horizontal = { start: left, stop: (left+width) };
-          let vertical = { start: bottom, stop: (bottom+height)};
-
-          setupTransform();
-          ctx.clearRect(left, bottom, width, height);
-
-          // draw horizontal lines
-          for (let i = bottom; i < top; i = i + 100) {
-            drawLine(canvas, left, i, right, i, "black", 0.4);
-          }
-          drawLine(canvas, left, 0, right, 0, "black", 1);
-
-          // draw vertical lines
-          for (let j = left; j < right; j = j + 100) {
-            drawLine(canvas, j, bottom, j, top, "black", 0.4);
-          }
-          drawLine(canvas, 0, bottom, 0, top, "black", 1);
-        }
-        function drawComponent(points) {
-          // drawing a line
-          ctx.beginPath();
-
-          ctx.moveTo(points[0].x, points[0].y);
-
-          for (i = 1; i < points.length; i++) {
-            if (points[i].geo == false) ctx.lineTo(points[i].x, points[i].y);
-          }
-
-          ctx.strokeStyle = "black";
-          ctx.lineWidth = 4;
-          ctx.stroke();
-          ctx.fillStyle = "lightgrey";
-          ctx.fill();
-
-          for (j = 1; j < points.length; j++) {
-            if (points[j].geo == true) {
-              ctx.beginPath();
-              ctx.arc(points[j].x, points[j].y, 6, 0, Math.PI * 2);
-              ctx.fillStyle = "red";
-              ctx.fill();
-            }
-          }
-        }
-        function drawGround() {
-          // render a rectangle
-          // in 2d context, the x and y coords are 0 0 at top left corner of canvas
-          // x increases on the right and y increases downwards
-          let height = FCP.y;
-          if (RCP.y < height) height = RCP.y;		// should be equal therefore not needed
-    		ctx.globalCompositeOperation='destination-over';
+    for (j = 1; j < points.length; j++) {
+      if (points[j].geo == true) {
+        ctx.beginPath();
+        ctx.arc(points[j].x, points[j].y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = "red";
+        ctx.fill();
+      }
+    }
+  }
+  function drawGround() {
+    // render a rectangle
+    // in 2d context, the x and y coords are 0 0 at top left corner of canvas
+    // x increases on the right and y increases downwards
+		let height = FCP.y;
+		if (RCP.y < height) height = RCP.y;		// should be equal therefore not needed
+    ctx.globalCompositeOperation='destination-over';
 		ctx.fillStyle = 'grey';
-    		ctx.fillRect(-2000, height, (4000), -1000);
+    ctx.fillRect(-2000, height, (4000), -1000);
 		ctx.globalCompositeOperation='source-over';
-        }
-        function drawCofG() {
-          ctx.globalAlpha = 1;
-          for (let j=0; j<CofG.length; j++) {
-            if (j >= 1) ctx.globalAlpha = 0.3;
-            var size = Math.log(CofG[j].mass) / Math.log(20) * 20;
-            let center = xy(CofG[j]);
+  }
+  function drawCofG() {
+		ctx.globalAlpha = 1;
+		for (let j=0; j<CofG.length; j++) {
+			if (j >= 1) ctx.globalAlpha = 0.3;
+			var size = Math.log(CofG[j].mass) / Math.log(20) * 20;
+			let center = xy(CofG[j]);
 
-            ctx.beginPath();
-            ctx.arc(center.x, center.y, size, 0, Math.PI * 2, false);
-            ctx.fillStyle = "black";
-            ctx.fill();
+			ctx.beginPath();
+			ctx.arc(center.x, center.y, size, 0, Math.PI * 2, false);
+			ctx.fillStyle = "black";
+			ctx.fill();
 
-            ctx.beginPath();
-            ctx.arc(center.x, center.y, size - 2, 0, Math.PI / 2, false);
-            ctx.lineTo(center.x, center.y);
-            ctx.lineTo(center.x + 100, center.y);
-            ctx.fillStyle = "yellow";
-            ctx.fill();
+			ctx.beginPath();
+			ctx.arc(center.x, center.y, size - 2, 0, Math.PI / 2, false);
+			ctx.lineTo(center.x, center.y);
+			ctx.lineTo(center.x + 100, center.y);
+			ctx.fillStyle = "yellow";
+			ctx.fill();
 
-            ctx.beginPath();
-            ctx.arc(center.x, center.y, size - 2, Math.PI, Math.PI * 3 / 2, false);
-            ctx.lineTo(center.x, center.y);
-            ctx.lineTo(center.x + 100, center.y);
-            ctx.fillStyle = "yellow";
-            ctx.fill();
+			ctx.beginPath();
+			ctx.arc(center.x, center.y, size - 2, Math.PI, Math.PI * 3 / 2, false);
+			ctx.lineTo(center.x, center.y);
+			ctx.lineTo(center.x + 100, center.y);
+			ctx.fillStyle = "yellow";
+			ctx.fill();
+			
+			ctx.transform(1,0,0,-1,0,0);
+			
+			ctx.fillStyle = "black";
+			ctx.font = "40px Arial";
+			ctx.beginPath();
+			ctx.fillText(CofG[j].mass.toFixed(0) + ' kg', center.x -50, -center.y -size*1.4);
+			
+			ctx.transform(1,0,0,-1,0,0);
+		}
+  }
+  function drawChain() {
+		let TEMP = join(SPROCKET, xy({len: radius.sprocket_fr, ang: ang.chain -90 }));
+		
+    ctx.strokeStyle = "black";
+    ctx.lineWidth = 5;
 
-            ctx.transform(1,0,0,-1,0,0);
-
-            ctx.fillStyle = "black";
-            ctx.font = "40px Arial";
-            ctx.beginPath();
-            ctx.fillText(CofG[j].mass.toFixed(0) + ' kg', center.x -50, -center.y -size*1.4);
-
-            ctx.transform(1,0,0,-1,0,0);
-          }
-        }
-        function drawChain() {
-          let TEMP = join(SPROCKET, xy({len: radius.sprocket_fr, ang: ang.chain -90 }));
-
-          ctx.strokeStyle = "black";
-          ctx.lineWidth = 5;
-
-          ctx.beginPath();
-          ctx.arc(RWS.x, RWS.y, radius.sprocket_rr, rad(130), rad(ang.chain -90), false);
-          ctx.lineTo(TEMP.x, TEMP.y); 
-          ctx.arc(SPROCKET.x, SPROCKET.y, radius.sprocket_fr, rad(ang.chain -90), rad(70), false);
-          ctx.stroke();
-        }
-        function drawEccentric () {
-
-          let radius = 30;
-          let angle = ang.frame + ang.eccen;
-
-          ctx.strokeStyle = "black";
-          ctx.lineWidth = 5;
-
-          ctx.beginPath();
-          ctx.arc(ECCEN_IN.x, ECCEN_IN.y, radius, rad(angle  +20), rad(angle +160), false); 
-          ctx.stroke();
-
-          ctx.beginPath();
-          ctx.arc(ECCEN_IN.x, ECCEN_IN.y, radius, rad(angle +200), rad(angle +340), false);
-          ctx.stroke();
-        }
-        function drawWheel(position, width, aspect, compliance = 0) {
-
-          var radius1 = ((17 / 2 * 25.4) + (width * 25.4) * aspect / 100);
-          var radius2 =  (17 / 2 * 25.4); 
-
-          var delta = deg(Math.acos((radius1 - compliance) / radius1));
-          var tyre_start = rad(270 + delta);
-          var tyre_stop = rad(270 - delta);
-
-          // render an arc
-          // arc takes x, y, radius, startangle, endangle and anticlockwise
-          // to render full circle pass 0 and 2*Math.PI as the values for start and end angle
-   	
-		ctx.globalCompositeOperation='destination-over';
-
+    ctx.beginPath();
+    ctx.arc(RWS.x, RWS.y, radius.sprocket_rr, rad(130), rad(ang.chain -90), false);
+    ctx.lineTo(TEMP.x, TEMP.y); 
+    ctx.arc(SPROCKET.x, SPROCKET.y, radius.sprocket_fr, rad(ang.chain -90), rad(70), false);
+    ctx.stroke();
+  }
+	function drawEccentric () {
+		
+		let radius = 30;
+		let angle = ang.frame + ang.eccen;
+		
+		ctx.strokeStyle = "black";
+    ctx.lineWidth = 5;
+		
 		ctx.beginPath();
-		ctx.arc(position.x, position.y, radius2, 0, rad(360), false);
-		ctx.fillStyle = "white";
-		ctx.fill();
-
+    ctx.arc(ECCEN_IN.x, ECCEN_IN.y, radius, rad(angle  +20), rad(angle +160), false); 
+		ctx.stroke();
+		
 		ctx.beginPath();
-		ctx.arc(position.x, position.y, radius1, tyre_start, tyre_stop, false);
-		ctx.fillStyle = "darkgrey";
-		ctx.fill();
+    ctx.arc(ECCEN_IN.x, ECCEN_IN.y, radius, rad(angle +200), rad(angle +340), false);
+    ctx.stroke();
+	}
+	function drawWheel(position, width, aspect, compliance = 0) {
+		
+    var radius1 = ((17 / 2 * 25.4) + (width * 25.4) * aspect / 100);
+    var radius2 =  (17 / 2 * 25.4); 
+
+    var delta = deg(Math.acos((radius1 - compliance) / radius1));
+    var tyre_start = rad(270 + delta);
+    var tyre_stop = rad(270 - delta);
+
+    // render an arc
+    // arc takes x, y, radius, startangle, endangle and anticlockwise
+    // to render full circle pass 0 and 2*Math.PI as the values for start and end angle
+   	ctx.globalCompositeOperation='destination-over';
+	 	
+		ctx.beginPath();
+    ctx.arc(position.x, position.y, radius2, 0, rad(360), false);
+    ctx.fillStyle = "white";
+    ctx.fill();
+		
+		ctx.beginPath();
+    ctx.arc(position.x, position.y, radius1, tyre_start, tyre_stop, false);
+    ctx.fillStyle = "darkgrey";
+    ctx.fill();
 
 		ctx.globalCompositeOperation='source-over';
-        }
-
+  }
 	function drawFrontGraph(shock, current) {
 		let x_shift = 1; let y_shift = 1;
 		let size = 100;
@@ -449,9 +590,9 @@
 		void ctx.setTransform(scale, 0, 0, scale, (1000/22*x_shift), (1000/22*y_shift)); // x & y must be scaled equally for text
 		
 		ctx.globalAlpha = 1;
-	    ctx.setLineDash([10, 0]);
-	    ctx.strokeStyle = "red";
-	    ctx.lineWidth = 1;
+    ctx.setLineDash([10, 0]);
+    ctx.strokeStyle = "red";
+    ctx.lineWidth = 1;
 
 		let y_mult = 100/stroke;
 		let x_mult = 100/range;
@@ -471,34 +612,37 @@
 		ctx.beginPath();
 		ctx.setLineDash([5, 1]);
 		ctx.strokeStyle = "blue";
-    		ctx.moveTo(x, 100);
+    ctx.moveTo(x, 100);
 		ctx.lineTo(x,   0);
 		ctx.stroke();
 		
 		ctx.strokeStyle = "blue";
 		ctx.beginPath();
-    		ctx.moveTo(0, 				(current-shock[0].length)*y_mult);
+    ctx.moveTo(0, 				(current-shock[0].length)*y_mult);
 		ctx.lineTo(x +cross, 	(current-shock[0].length)*y_mult);
 		ctx.stroke();
 		
 		ctx.font = "10px Arial";
-		let pct = 100 - (current-shock[0].length)/stroke*100;
+		
 		ctx.beginPath();
 		ctx.fillText(current.toFixed(1) + ' mm', -20, (current-shock[0].length)*y_mult -cross)
+		let pct = 100 - (current-shock[0].length)/stroke*100;
 		ctx.fillText(pct.toFixed(1) + ' %', x +(2*cross), (current-shock[0].length)*y_mult +3);
 		ctx.fillText(current_force.toFixed(1) + ' kg', x -15, -5);
-    		ctx.fillText(front_force.pbase.toFixed(1) + ' kg base', x -15, 110);
-    		ctx.fillText(front_force.ptransfer.toFixed(1) + ' kg transfer', x -15, 120);
+    ctx.fillText(front_force.pbase.toFixed(1) + ' kg base', x -15, 110);
+    ctx.fillText(front_force.ptransfer.toFixed(1) + ' kg transfer', x -15, 120);
 		ctx.fillText(front_force.pbrake.toFixed(1) + ' kg brake', x -15, 130);
+		let dive = (front_force.pbrake / front_force.ptransfer)*100;
+		ctx.fillText(dive.toFixed(1) + ' % dive', x -15, 140);
 		
-    		ctx.globalAlpha = 1;
+    ctx.globalAlpha = 1;
 		void ctx.setTransform(old);
 	}
 	function drawRearGraph(shock, current) {
 		let x_shift = 16; let y_shift = 1;
 		let size = 100;
 		let step=1;
-
+		     
 		let stroke = shock[5].length - shock[0].length;	
 		let range = 1000;
 		let cross = 5;
@@ -506,11 +650,11 @@
 		let scale = (1000/22)*(4/100);	// canvas is 1000px scaled to 22 grid lines. Graph viewpoer is 100px over 4 grid lines
 		let old = ctx.getTransform();
 		void ctx.setTransform(scale, 0, 0, scale, (1000/22*x_shift), (1000/22*y_shift)); // x & y must be scaled equally for text
-
+		
 		ctx.globalAlpha = 1;
-	    ctx.setLineDash([10, 0]);
-	    ctx.strokeStyle = "red";
-	    ctx.lineWidth = 1;
+    ctx.setLineDash([10, 0]);
+    ctx.strokeStyle = "red";
+    ctx.lineWidth = 1;
 
 		let y_mult = 100/stroke;
 		let x_mult = 100/range;
@@ -531,355 +675,357 @@
 		ctx.beginPath();
 		ctx.setLineDash([5, 1]);
 		ctx.strokeStyle = "blue";
-    		ctx.moveTo(x, 100);
+    ctx.moveTo(x, 100);
 		ctx.lineTo(x,   0);
 		ctx.stroke();
 		
 		ctx.strokeStyle = "blue";
 		ctx.beginPath();
-    		ctx.moveTo(0, 				(current-shock[0].length)*y_mult);
+    ctx.moveTo(0, 				(current-shock[0].length)*y_mult);
 		ctx.lineTo(x +cross, 	(current-shock[0].length)*y_mult);
 		ctx.stroke();
 		
 		ctx.font = "10px Arial";
-		let pct = 100 - (current-shock[0].length)/stroke*100;
 		ctx.beginPath();
 		ctx.fillText(current.toFixed(1) + ' mm', -20, (current-shock[0].length)*y_mult -cross)
+		let pct = 100 - (current-shock[0].length)/stroke*100;
 		ctx.fillText(pct.toFixed(1) + ' %', x +(2*cross), (current-shock[0].length)*y_mult +3);
 		ctx.fillText(current_force.toFixed(1) + ' kg', x -15, -5);
-    		ctx.fillText(rear_force.pbase.toFixed(1) + ' kg base', x -15, 110);
-    		ctx.fillText(rear_force.ptransfer.toFixed(1) + ' kg transfer', x -15, 120);
+    ctx.fillText(rear_force.pbase.toFixed(1) + ' kg base', x -15, 110);
+    ctx.fillText(rear_force.ptransfer.toFixed(1) + ' kg transfer', x -15, 120);
 		ctx.fillText(rear_force.pdrive.toFixed(1) + ' kg drive', x -15, 130);
 		ctx.fillText(rear_force.pchain.toFixed(1) + ' kg chain', x -15, 140);
-
+		let squat = ((rear_force.pdrive + rear_force.pchain) / rear_force.ptransfer)*100;
+		ctx.fillText(squat.toFixed(1) + ' % dive', x -15, 150);
+		
 		ctx.globalAlpha = 1;
 		void ctx.setTransform(old);
 	}
+	
+// Construction functions
+  function build_CofG() {
+		CofG[0] = {mass: 0, len:0, ang:0}; // reset resultant 
+		for (let s=1; s<4; s++) CofG[s].ang;
+		CofG[4].len = polar(FWS).len;	// Front Wheel position
+		CofG[4].ang = polar(FWS).ang;	// Front Wheel position
+		CofG[5].len = polar(RWS).len;	// Rear Wheel position
+		CofG[5].ang = polar(RWS).ang;	// Rear Wheel position
+		
+		for (let c=1; c<CofG.length; c++) {
+			let new_CofG = {x:0, y:0};
+			let new_mass = CofG[0].mass + CofG[c].mass;
+			new_CofG.x = (CofG[0].mass*xy(CofG[0]).x + CofG[c].mass*xy(CofG[c]).x) / new_mass;
+			new_CofG.y = (CofG[0].mass*xy(CofG[0]).y + CofG[c].mass*xy(CofG[c]).y) / new_mass;
+			CofG[0].len = polar(new_CofG).len;
+			CofG[0].ang = polar(new_CofG).ang;
+			CofG[0].mass = new_mass;
+			//console.log(new_CofG);
+		}
+		//console.log(CofG[0]);
+	}
+	function build_swingarm() {
+		// inputs are global xy's {0,0} and lengths of phantom & swingarm_pickup
+		// length.swingarm_pickup must be global as needed here to orient the linkage. Also needed in linkage calcs
+    const san = 545; // Swingarm Nominal
+    const adj = 0; // Chain adjuster +/-20mm
+    const sal = san + adj; // Swingarm Length
+    //const sap = 200; // Swingarm Pickup
+    const spa = +20; // Swingarm Pickup Angle (deg, +ve is anticlockwise)
+    const sat = 75; // Swingarm thickness
 
-      // Construction functions
-        function build_CofG() {
-          CofG[0] = {mass: 0, len:0, ang:0}; // reset resultant 
-          for (let s=1; s<4; s++) CofG[s].ang;
-          CofG[4].len = polar(FWS).len;	// Front Wheel position
-          CofG[4].ang = polar(FWS).ang;	// Front Wheel position
-          CofG[5].len = polar(RWS).len;	// Rear Wheel position
-          CofG[5].ang = polar(RWS).ang;	// Rear Wheel position
+		let swingarm_pickup;
+    let ang_pickup;
+		let temp1,temp2;
+		
+		ang_pickup = polar(P_UP_RR).ang - deg(acosine(length.swingarm_pickup, polar(P_UP_RR).len, length.gap)); // rad -2deg
+    ang.rear = ang_pickup - spa; // rad -22deg
 
-          for (let c=1; c<CofG.length; c++) {
-            let new_CofG = {x:0, y:0};
-            let new_mass = CofG[0].mass + CofG[c].mass;
-            new_CofG.x = (CofG[0].mass*xy(CofG[0]).x + CofG[c].mass*xy(CofG[c]).x) / new_mass;
-            new_CofG.y = (CofG[0].mass*xy(CofG[0]).y + CofG[c].mass*xy(CofG[c]).y) / new_mass;
-            CofG[0].len = polar(new_CofG).len;
-            CofG[0].ang = polar(new_CofG).ang;
-            CofG[0].mass = new_mass;
-            //console.log(new_CofG);
-          }
-          //console.log(CofG[0]);
-        }
-        function build_swingarm() {
-          // inputs are global xy's {0,0} and lengths of phantom & swingarm_pickup
-          // length.swingarm_pickup must be global as needed here to orient the linkage. Also needed in linkage calcs
-          const san = 545; // Swingarm Nominal
-          const adj = 0; // Chain adjuster +/-20mm
-          const sal = san + adj; // Swingarm Length
-          //const sap = 200; // Swingarm Pickup
-          const spa = +20; // Swingarm Pickup Angle (deg, +ve is anticlockwise)
-          const sat = 75; // Swingarm thickness
+		swingarm_pickup = xy({len: length.swingarm_pickup, ang: ang_pickup});
+		RWS = xy({len: sal, ang: ang.rear});
+		
+		temp1 = polar({x: 50, y:  sat/2});
+		temp2 = {x: 50, y: -sat/2};
+		
+    swingarm[0] = join(xy(nothing), xy(nothing)); 
+    swingarm[1] = xy({len: sat, ang: ang.rear +30}); 
+    swingarm[2] = join(swingarm_pickup, xy({len:35, ang: ang.rear +270-30})); 
+		swingarm[3] = swingarm_pickup;
+		swingarm[4] = join(swingarm_pickup, xy({len:35, ang: ang.rear +270+30}));
+		swingarm[5] = join(xy({len:san, ang:ang.rear}), xy({len: temp1.len, ang: ang.rear +temp1.ang})); 
+		swingarm[6] = join(xy({len:san, ang:ang.rear}), xy({len: temp1.len, ang: ang.rear -temp1.ang})); 
+		swingarm[7] = xy({len: sat, ang: ang.rear -30}); 
+		swingarm[8] = join(xy(nothing), xy(nothing)); 
+		swingarm[9] = xy(swingarm_pickup);
+    swingarm[10] = join(xy(nothing), xy(nothing)); 
+		swingarm[11] = join(RWS, xy(nothing)); 
 
-          let swingarm_pickup;
-          let ang_pickup;
-          let temp1,temp2;
+    for (let i = 0; i < swingarm.length; i++) {
+      Object.defineProperty(swingarm[i], 'geo', {value: false, writable: true});
+      if (i >= 9) swingarm[i].geo = true;
+    }
+  }
+  function build_linkage(shock) {
+		// inputs are global xy's {0,0} & P_UP_RR, length.swingarm_pickup, plus shock length passed as param
+		// length.swingarm_pickup must be global as needed here to orient the linkage. Also needed in swingarm calcs
+		let ref3, origin;
+    let COA,COB;
+		let swingarm_pickup, shock_bottom;
+    // let ang_pickup; // rad -2deg
 
-          ang_pickup = polar(P_UP_RR).ang - deg(acosine(length.swingarm_pickup, polar(P_UP_RR).len, length.gap)); // rad -2deg
-          ang.rear = ang_pickup - spa; // rad -22deg
+    const link = { a: 90, b: 290,  c: 110, d: 260, turn: 20 }; // upright, shock bottom, shock top, frame
 
-          swingarm_pickup = xy({len: length.swingarm_pickup, ang: ang_pickup});
-          RWS = xy({len: sal, ang: ang.rear});
+    // calculates the orientation of the rear shock and linkage
+    ref3 = polar(P_UP_RR); // 300mm ref3 & ang2
+    //ang2 = rad(rpa + ang.frame); // rad 95deg
 
-          temp1 = polar({x: 50, y:  sat/2});
-          temp2 = {x: 50, y: -sat/2};
+    COB = deg(acosine(link.b, link.c, shock)); //  120deg
+    COA = COB + link.turn; 		//  140deg
+    length.gap = cosine(link.a, link.d, rad(COA)); // phantom length 381mm
+    
+    ang.beam = ref3.ang + deg(acosine(ref3.len, length.gap, length.swingarm_pickup)) + deg(acosine(link.d, length.gap, link.a)) - 180; // deg
+    ang.link = ang.beam + COA -90;
+    ang.shock_rr = ang.beam - deg(acosine(shock, link.c, link.b)) +90;
+		
+		origin = join(P_UP_RR, xy({len: (link.d), 					ang: ang.beam}));
+		
+    beam[0] = join(P_UP_RR, xy(nothing));
+    beam[1] = join(P_UP_RR, xy({len: 20, ang: ang.beam 			+30}));
+    beam[2] = join(origin,  xy({len: 20, ang: ang.beam +180 -30}));
+    beam[3] = 		 origin;
+    beam[4] = join(origin,  xy({len: 20, ang: ang.beam +180 +30}));
+    beam[5] = join(P_UP_RR, xy({len: 20, ang: ang.beam 			-30}));
+    beam[6] = join(P_UP_RR, xy(nothing));
+    beam[7] = join(P_UP_RR, xy(nothing));
+    beam[8] = join(P_UP_RR, xy({len: (link.d - link.c), ang: ang.beam}));
+    beam[9] = join(P_UP_RR, xy({len: (link.d), 					ang: ang.beam}));
 
-          swingarm[0] = join(xy(nothing), xy(nothing)); 
-          swingarm[1] = xy({len: sat, ang: ang.rear +30}); 
-          swingarm[2] = join(swingarm_pickup, xy({len:35, ang: ang.rear +270-30})); 
-          swingarm[3] = swingarm_pickup;
-          swingarm[4] = join(swingarm_pickup, xy({len:35, ang: ang.rear +270+30}));
-          swingarm[5] = join(xy({len:san, ang:ang.rear}), xy({len: temp1.len, ang: ang.rear +temp1.ang})); 
-          swingarm[6] = join(xy({len:san, ang:ang.rear}), xy({len: temp1.len, ang: ang.rear -temp1.ang})); 
-          swingarm[7] = xy({len: sat, ang: ang.rear -30}); 
-          swingarm[8] = join(xy(nothing), xy(nothing)); 
-          swingarm[9] = xy(swingarm_pickup);
-          swingarm[10] = join(xy(nothing), xy(nothing)); 
-          swingarm[11] = join(RWS, xy(nothing)); 
+    for (let i = 0; i < beam.length; i++) {
+      Object.defineProperty(beam[i], 'geo', {value: false, writable: true});
+      if (i >= 7) beam[i].geo = true;
+    }
+		
+		swingarm_pickup = join(origin, xy({len: link.a, ang: ang.link -90}));
+		shock_bottom = join(origin, xy({len: link.b, ang: ang.link -90 -link.turn}));
+		
+    linkage[ 0] = join(P_UP_RR, xy({len: (link.d - link.c), ang: ang.beam}));
+    linkage[ 1] = join(shock_bottom, xy(nothing));
+    linkage[ 2] = join(shock_bottom, xy({len: 35, ang: ang.link +30}));
+		linkage[ 3] = join(origin, xy({len: link.a, ang: ang.link +240}));
+    linkage[ 4] = join(origin, xy(nothing));
+    linkage[ 5] = join(origin, xy({len: 20, ang: ang.link 			-60}));
+    linkage[ 6] = join(swingarm_pickup, xy({len: 20, ang: ang.link +60}));
+    linkage[ 7] = join(swingarm_pickup, xy(nothing));
+    linkage[ 8] = join(swingarm_pickup, xy({len: 25, ang: ang.link +180}));
+    linkage[ 9] = join(shock_bottom, xy({len: 50, ang: ang.link}));
+		linkage[10] = join(shock_bottom, xy(nothing));
+    linkage[11] = join(origin, xy(nothing));
+    linkage[12] = join(swingarm_pickup, xy(nothing));
+    linkage[13] = join(shock_bottom, xy(nothing));
+		
+		for (let i = 0; i < linkage.length; i++) {
+      Object.defineProperty(linkage[i], 'geo', {value: false, writable: true});
+      if (i >= 11) linkage[i].geo = true;
+    }
+  }
+  function build_frame(rotation = 0) {
 
-          for (let i = 0; i < swingarm.length; i++) {
-            Object.defineProperty(swingarm[i], 'geo', {value: false, writable: true});
-            if (i >= 9) swingarm[i].geo = true;
-          }
-        }
-        function build_linkage(shock) {
-          // inputs are global xy's {0,0} & P_UP_RR, length.swingarm_pickup, plus shock length passed as param
-          // length.swingarm_pickup must be global as needed here to orient the linkage. Also needed in swingarm calcs
-          let ref3, origin;
-          let COA,COB;
-          let swingarm_pickup, shock_bottom;
-          // let ang_pickup; // rad -2deg
+    const eccen_adj = 	{len:13.5, ang: 270 + rotation}; // ang is the adjustable variable
+    const steer_adj = 	{len:   7, ang: 180 + rotation};
+    const eccentric = 	{len: 500, ang: 180 + rotation}; // Frame length to Eccentric  
+    const pickup_rr = 	{len: 240, ang: 125 + rotation}; // Rear Pickup Length
+    const steering = 		{len: 800, ang: 165 + rotation}; // Steering head nominal (underside centre of insert)
+    const sprocket_fr = {len:  80, ang: 200 + rotation}; // Front sprocket
+    const pickup_fr = 	{len: 660, ang: 162 + rotation}; // Front Pickup Length
+    const c_of_g_b = 		{len: 450, ang: 160 + rotation}; // will become a variable depending on settings
+		const c_of_g_f = 		{len: 460, ang: 135 + rotation}; // will become a variable depending on settings
+		const c_of_g_r = 		{len: 440, ang: 115 + rotation}; // will become a variable depending on settings
 
-          const link = { a: 90, b: 290,  c: 110, d: 260, turn: 20 }; // upright, shock bottom, shock top, frame
+    ECCEN_IN =  xy(eccentric);
+    ECCEN_OUT = join(xy(eccentric), xy(eccen_adj));
+    TOP = 			join(xy(steering), xy(steer_adj));
+    P_UP_FR = 	xy(pickup_fr);
+    P_UP_RR = 	xy(pickup_rr);
+    SPROCKET =  xy(sprocket_fr);
+		//COFG = 			xy(c_of_g_b);
+		CofG[1] = c_of_g_b; CofG[1].mass = mass.frame;
+		CofG[2] = c_of_g_f; CofG[2].mass = mass.fuel;
+		CofG[3] = c_of_g_r; CofG[3].mass = mass.rider;
 
-          // calculates the orientation of the rear shock and linkage
-          ref3 = polar(P_UP_RR); // 300mm ref3 & ang2
-          //ang2 = rad(rpa + ang.frame); // rad 95deg
+    frame[ 0] = xy({len:  0, ang:   0 + rotation});
+    frame[ 1] = xy({len:120, ang: 270 + rotation});
+    frame[ 2] = xy({len: 70, ang: 320 + rotation});
+    frame[ 3] = xy({len:120, ang: 100 + rotation});
+    frame[ 4] = xy(pickup_rr);
+		frame[ 5] = xy({len:700, ang: 160 + rotation});
+    frame[ 6] = join(xy(steering), xy({len:  50, ang: 150 + rotation}));
+    frame[ 7] = join(xy(steering), xy({len:  43, ang: 180 + rotation}));
+    frame[ 8] = join(xy(steering), xy({len:  80, ang:   0 + rotation}));
+    frame[ 9] = join(xy(steering), xy({len: 140, ang: -20 + rotation}));
+    frame[10] = xy(eccentric); // Eccentric
+    frame[11] = xy({len:350, ang: 160 + rotation});
+    frame[12] = xy({len:190, ang: 140 + rotation});
+    frame[13] = xy({len:150, ang: 130 + rotation});
+    frame[14] = xy({len:  0, ang:   0 + rotation});
+    frame[15] = xy({len:  0, ang:   0 + rotation}); // swingarm pivot as reference point
+    frame[16] = P_UP_RR; // Rear suspension pickup (shock mount)
+    frame[17] = P_UP_FR; // Front suspernsion pickup (shock mount)
+    frame[18] = TOP; // Top steering pivot
+    frame[19] = ECCEN_OUT; // Swingarm pivot (output of eccentric adjustment)
+    frame[20] = xy(eccentric); // Eccentric center
+    frame[21] = SPROCKET; // sprocket
+    //frame[22] = COFG; // Resultant C-of-G for bike, fuel & rider
 
-          COB = deg(acosine(link.b, link.c, shock)); //  120deg
-          COA = COB + link.turn; 		//  140deg
-          length.gap = cosine(link.a, link.d, rad(COA)); // phantom length 381mm
+    for (let i = 0; i < frame.length; i++) {
+      Object.defineProperty(frame[i], 'geo', {value: false, writable: true});
+      if (i >= 15) frame[i].geo = true;
+    }
+  }
+  function build_saxtrak(shock) {
+    
+		// inputs are global xy's ECCEN & P_UP_FR, plus shock length passed as param
+		let ref; // eccentric to shock top mount
+    let lower_link; // angle of saXtrak opposite shock 								// rad 140deg
+		let SHOCK;
+		
+    const wishbone =  {len: 270, ang: 180}; // saXtrak Arm Length
+    const pickup_fr = {len: 135, ang: 190}; // saXtrak Pickup
+    const xat = 40; // saXtrak thickness
+		
+    // calculates the orientation of front saXtrak based on frame ref and shock length
+    ref = polar(P_UP_FR, ECCEN_OUT);	// returned angle is in degrees. 2nd param is the origin
+    lower_link = deg(acosine(ref.len, pickup_fr.len, shock)); // angle of saXtrak opposite shock 
+    ang.front = (ref.ang +lower_link +wishbone.ang -pickup_fr.ang);
+		ang.shock_fr = ref.ang - acosine(ref.len, shock, pickup_fr.len);
 
-          ang.beam = ref3.ang + deg(acosine(ref3.len, length.gap, length.swingarm_pickup)) + deg(acosine(link.d, length.gap, link.a)) - 180; // deg
-          ang.link = ang.beam + COA -90;
-          ang.shock_rr = ang.beam - deg(acosine(shock, link.c, link.b)) +90;
+		PIVOT = join(ECCEN_OUT, xy({len: wishbone.len,  ang: ang.front} ));
+		SHOCK = join(ECCEN_OUT, xy({len: pickup_fr.len, ang: ref.ang +lower_link}));
+		
+		saxtrak[ 0] = join(P_UP_FR, xy({len: 0, ang: 0}));
+    saxtrak[ 1] = join(SHOCK, xy({len: 0, ang: -90 + ang.front}));
+		saxtrak[ 2] = join(SHOCK, xy({len: 4, ang: -120 + ang.front}));
+    saxtrak[ 3] = join(ECCEN_OUT, xy({len: xat, ang: 30 + ang.front}));
+    saxtrak[ 4] = join(ECCEN_OUT, xy({len: 0, ang: -30 + ang.front}));
+    saxtrak[ 5] = join(ECCEN_OUT, xy({len: xat, ang: -30 + ang.front}));
+    saxtrak[ 6] = join(PIVOT, xy({len: xat, ang: -150 + ang.front}));
+    saxtrak[ 7] = join(PIVOT, xy({len: 0, ang: -150 + ang.front}));
+    saxtrak[ 8] = join(PIVOT, xy({len: xat, ang: +150 + ang.front}));
+    saxtrak[ 9] = join(SHOCK, xy({len: 4, ang: -60 + ang.front}));
+		saxtrak[10] = join(SHOCK, xy({len: 0, ang: -90 + ang.front}));
+	
+    saxtrak[11] = ECCEN_OUT;
+    saxtrak[12] = PIVOT;
+    saxtrak[13] = SHOCK;
+		
+		for (let i = 0; i < saxtrak.length; i++) {
+      Object.defineProperty(saxtrak[i], 'geo', {value: false, writable: true});
+      if (i >= 11) saxtrak[i].geo = true;
+    }
+  }
+  function build_forks() {
+    
+		// inputs are global xy's TOP & PIVOT
 
-          origin = join(P_UP_RR, xy({len: (link.d), 					ang: ang.beam}));
+		let axis = polar(PIVOT, TOP);
+		let ref1, ref2, ref3, ref4, ref5, temp;
+		
+		// drawing parameters, or things that will never change!
+    const frl = 428; // fork leg length, top-to-spindle
+    const fru =  73; // fork leg length, top to middle of box
+		const fwd =  60; // Fork Leg width
+    const suo =  15; // Steering axis offet upper
+    const slo =  20; // Steering axis offet lower
+		const yko =  40; // distance top of yoke to steering head reference 
+		const ykl =  90; // depth of yoke body
+    const swd =  40; // Sliders width
+		const sln = 550; // slider length
+		
+		// variable parameters to adjust
+    const fro = -6; // Insert offset, +5mm lowered, -5mm is raised
+    const frt = fru + fro; // Fork top above pivot (55mm)
+    const frb = frl - frt; // Fork bottom below pivot (445mm)
+    const ftp = 75; // Distance forks pass through yoke (clip-ons don't count)
+    
+		ang.rake = axis.ang;		// angle of PIVOT relative to steering head TOP. I.e. approx 270-24 =246
+    length.head = axis.len; // length
+    ang.forks = ang.rake - deg (Math.atan((slo - suo) / (length.head - yko)) );
+		
+		ref1 = join(TOP, 	 xy({len:yko, ang: ang.forks    }));	// plane of top of yoke
+		ref2 = join(ref1,	 xy({len:suo, ang: ang.forks -90}));  // center line of sliders at yoke top
+		ref3 = join(PIVOT, xy({len:slo, ang: ang.forks -90}));	// centre line of sliders at lower offset
+		ref4 = join(ref2,  xy({len:ftp, ang: ang.forks-180}));  // sliders top
+		ref5 = join(ref4,  xy({len:sln, ang: ang.forks    }));  // sliders bottom
+		FWS  = join(ref3,  xy({len:frb, ang: ang.forks    }));	// Front wheel spindle
 
-          beam[0] = join(P_UP_RR, xy(nothing));
-          beam[1] = join(P_UP_RR, xy({len: 20, ang: ang.beam 			+30}));
-          beam[2] = join(origin,  xy({len: 20, ang: ang.beam +180 -30}));
-          beam[3] = 		 origin;
-          beam[4] = join(origin,  xy({len: 20, ang: ang.beam +180 +30}));
-          beam[5] = join(P_UP_RR, xy({len: 20, ang: ang.beam 			-30}));
-          beam[6] = join(P_UP_RR, xy(nothing));
-          beam[7] = join(P_UP_RR, xy(nothing));
-          beam[8] = join(P_UP_RR, xy({len: (link.d - link.c), ang: ang.beam}));
-          beam[9] = join(P_UP_RR, xy({len: (link.d), 					ang: ang.beam}));
+		temp = polar({x: fwd/2, y: frt});
 
-          for (let i = 0; i < beam.length; i++) {
-            Object.defineProperty(beam[i], 'geo', {value: false, writable: true});
-            if (i >= 7) beam[i].geo = true;
-          }
+    stanchion[0] = join(FWS, 		xy(nothing));
+    stanchion[1] = join(FWS, 		xy({len: fwd, 			ang: ang.forks -90 -60}));
+    stanchion[2] = join(ref3, 	xy({len: temp.len, 	ang: ang.forks +180 +(90-temp.ang)}));
+		stanchion[3] = join(ref3, 	xy({len: temp.len, 	ang: ang.forks +180 -(90-temp.ang)}));
+		stanchion[4] = join(ref3, 	xy({len: fwd,      	ang: ang.forks +180 -(90-60)}));
+		stanchion[5] = join(PIVOT,	xy(nothing));
+    stanchion[6] = join(ref3, 	xy({len: fwd,   		ang: ang.forks +30}));
+    stanchion[7] = join(FWS, 		xy({len: fwd, 			ang: ang.forks +90 +60}));
+    stanchion[8] = join(FWS, 		xy(nothing));
+		
+    stanchion[9] = FWS;
 
-          swingarm_pickup = join(origin, xy({len: link.a, ang: ang.link -90}));
-          shock_bottom = join(origin, xy({len: link.b, ang: ang.link -90 -link.turn}));
+		for (let i = 0; i < stanchion.length; i++) {
+      Object.defineProperty(stanchion[i], 'geo', {value: false, writable: true});
+      if (i >= 9) stanchion[i].geo = true;
+    }
+		
+    sliders[0] = join(ref4, 		xy({len: swd/2, ang: ang.forks -90}));
+    sliders[1] = join(ref4, 		xy({len: swd/2, ang: ang.forks +90}));
+    sliders[2] = join(ref5, 		xy({len: swd/2, ang: ang.forks +90}));
+    sliders[3] = join(ref5, 		xy({len: swd/2, ang: ang.forks -90}));
+    sliders[4] = join(ref4, 		xy({len: swd/2, ang: ang.forks -90}));
+		
+		for (let i = 0; i < sliders.length; i++) {
+      Object.defineProperty(sliders[i], 'geo', {value: false, writable: true});
+    }
 
-          linkage[ 0] = join(P_UP_RR, xy({len: (link.d - link.c), ang: ang.beam}));
-          linkage[ 1] = join(shock_bottom, xy(nothing));
-          linkage[ 2] = join(shock_bottom, xy({len: 35, ang: ang.link +30}));
-          linkage[ 3] = join(origin, xy({len: link.a, ang: ang.link +240}));
-          linkage[ 4] = join(origin, xy(nothing));
-          linkage[ 5] = join(origin, xy({len: 20, ang: ang.link 			-60}));
-          linkage[ 6] = join(swingarm_pickup, xy({len: 20, ang: ang.link +60}));
-          linkage[ 7] = join(swingarm_pickup, xy(nothing));
-          linkage[ 8] = join(swingarm_pickup, xy({len: 25, ang: ang.link +180}));
-          linkage[ 9] = join(shock_bottom, xy({len: 50, ang: ang.link}));
-          linkage[10] = join(shock_bottom, xy(nothing));
-          linkage[11] = join(origin, xy(nothing));
-          linkage[12] = join(swingarm_pickup, xy(nothing));
-          linkage[13] = join(shock_bottom, xy(nothing));
+		temp = polar({x: fwd/2, y: -ykl});
+		
+    yoke[0] = join(TOP, 		xy(nothing));
+    yoke[1] = join(ref2, 		xy(nothing));
+    yoke[2] = join(ref2, 		xy({len:fwd/2, ang: ang.forks -90}));
+    yoke[3] = join(ref2, 		xy({len: temp.len, 	ang: ang.forks +180 +(90-temp.ang)}));
+    yoke[4] = join(ref2, 		xy({len: temp.len, 	ang: ang.forks +180 -(90-temp.ang)}));
+    yoke[5] = join(ref2, 		xy({len:fwd/2, ang: ang.forks +90}));
+    yoke[6] = join(TOP, 		xy(nothing));
+		
+		for (let i = 0; i < yoke.length; i++) {
+      Object.defineProperty(yoke[i], 'geo', {value: false, writable: true});
+    }
+  }
+	function build_wheel(position, width, aspect, compliance = 0) {
+		
+    var radius1 = ((17 / 2 * 25.4) + (width * 25.4) * aspect / 100);
+		
+		
+		/*
+    var radius2 =  (17 / 2 * 25.4); 
 
-          for (let i = 0; i < linkage.length; i++) {
-            Object.defineProperty(linkage[i], 'geo', {value: false, writable: true});
-            if (i >= 11) linkage[i].geo = true;
-          }
-        }
-        function build_frame(rotation = 0) {
+    var delta = deg(Math.acos((radius1 - compliance) / radius1));
+    var tyre_start = rad(270 + delta);
+    var tyre_stop = rad(270 - delta);
 
-          const eccen_adj = 	{len:13.5, ang: 270 + rotation}; // ang is the adjustable variable
-          const steer_adj = 	{len:   7, ang: 180 + rotation};
-          const eccentric = 	{len: 500, ang: 180 + rotation}; // Frame length to Eccentric  
-          const pickup_rr = 	{len: 240, ang: 125 + rotation}; // Rear Pickup Length
-          const steering = 		{len: 800, ang: 165 + rotation}; // Steering head nominal (underside centre of insert)
-          const sprocket_fr = {len:  80, ang: 200 + rotation}; // Front sprocket
-          const pickup_fr = 	{len: 660, ang: 162 + rotation}; // Front Pickup Length
-          const c_of_g_b = 		{len: 450, ang: 160 + rotation}; // will become a variable depending on settings
-          const c_of_g_f = 		{len: 460, ang: 135 + rotation}; // will become a variable depending on settings
-          const c_of_g_r = 		{len: 440, ang: 115 + rotation}; // will become a variable depending on settings
+    // render an arc
+    // arc takes x, y, radius, startangle, endangle and anticlockwise
+    // to render full circle pass 0 and 2*Math.PI as the values for start and end angle
+    ctx.beginPath();
+    ctx.arc(x, y, radius1, tyre_start, tyre_stop, false);
+    ctx.fillStyle = "darkgrey";
+    ctx.fill();
 
-          ECCEN_IN =  xy(eccentric);
-          ECCEN_OUT = join(xy(eccentric), xy(eccen_adj));
-          TOP = 			join(xy(steering), xy(steer_adj));
-          P_UP_FR = 	xy(pickup_fr);
-          P_UP_RR = 	xy(pickup_rr);
-          SPROCKET =  xy(sprocket_fr);
-          //COFG = 			xy(c_of_g_b);
-          CofG[1] = c_of_g_b; CofG[1].mass = mass.frame;
-          CofG[2] = c_of_g_f; CofG[2].mass = mass.fuel;
-          CofG[3] = c_of_g_r; CofG[3].mass = mass.rider;
-
-          frame[ 0] = xy({len:  0, ang:   0 + rotation});
-          frame[ 1] = xy({len:120, ang: 270 + rotation});
-          frame[ 2] = xy({len: 70, ang: 320 + rotation});
-          frame[ 3] = xy({len:120, ang: 100 + rotation});
-          frame[ 4] = xy(pickup_rr);
-          frame[ 5] = xy({len:700, ang: 160 + rotation});
-          frame[ 6] = join(xy(steering), xy({len:  50, ang: 150 + rotation}));
-          frame[ 7] = join(xy(steering), xy({len:  43, ang: 180 + rotation}));
-          frame[ 8] = join(xy(steering), xy({len:  80, ang:   0 + rotation}));
-          frame[ 9] = join(xy(steering), xy({len: 140, ang: -20 + rotation}));
-          frame[10] = xy(eccentric); // Eccentric
-          frame[11] = xy({len:350, ang: 160 + rotation});
-          frame[12] = xy({len:190, ang: 140 + rotation});
-          frame[13] = xy({len:150, ang: 130 + rotation});
-          frame[14] = xy({len:  0, ang:   0 + rotation});
-          frame[15] = xy({len:  0, ang:   0 + rotation}); // swingarm pivot as reference point
-          frame[16] = P_UP_RR; // Rear suspension pickup (shock mount)
-          frame[17] = P_UP_FR; // Front suspernsion pickup (shock mount)
-          frame[18] = TOP; // Top steering pivot
-          frame[19] = ECCEN_OUT; // Swingarm pivot (output of eccentric adjustment)
-          frame[20] = xy(eccentric); // Eccentric center
-          frame[21] = SPROCKET; // sprocket
-          //frame[22] = COFG; // Resultant C-of-G for bike, fuel & rider
-
-          for (let i = 0; i < frame.length; i++) {
-            Object.defineProperty(frame[i], 'geo', {value: false, writable: true});
-            if (i >= 15) frame[i].geo = true;
-          }
-        }
-        function build_saxtrak(shock) {
-
-          // inputs are global xy's ECCEN & P_UP_FR, plus shock length passed as param
-          let ref; // eccentric to shock top mount
-          let lower_link; // angle of saXtrak opposite shock 								// rad 140deg
-          let SHOCK;
-
-          const wishbone =  {len: 270, ang: 180}; // saXtrak Arm Length
-          const pickup_fr = {len: 135, ang: 190}; // saXtrak Pickup
-          const xat = 40; // saXtrak thickness
-
-          // calculates the orientation of front saXtrak based on frame ref and shock length
-          ref = polar(P_UP_FR, ECCEN_OUT);	// returned angle is in degrees. 2nd param is the origin
-          lower_link = deg(acosine(ref.len, pickup_fr.len, shock)); // angle of saXtrak opposite shock 
-          ang.front = (ref.ang +lower_link +wishbone.ang -pickup_fr.ang);
-          ang.shock_fr = ref.ang - acosine(ref.len, shock, pickup_fr.len);
-
-          PIVOT = join(ECCEN_OUT, xy({len: wishbone.len,  ang: ang.front} ));
-          SHOCK = join(ECCEN_OUT, xy({len: pickup_fr.len, ang: ref.ang +lower_link}));
-
-          saxtrak[ 0] = join(P_UP_FR, xy({len: 0, ang: 0}));
-          saxtrak[ 1] = join(SHOCK, xy({len: 0, ang: -90 + ang.front}));
-          saxtrak[ 2] = join(SHOCK, xy({len: 4, ang: -120 + ang.front}));
-          saxtrak[ 3] = join(ECCEN_OUT, xy({len: xat, ang: 30 + ang.front}));
-          saxtrak[ 4] = join(ECCEN_OUT, xy({len: 0, ang: -30 + ang.front}));
-          saxtrak[ 5] = join(ECCEN_OUT, xy({len: xat, ang: -30 + ang.front}));
-          saxtrak[ 6] = join(PIVOT, xy({len: xat, ang: -150 + ang.front}));
-          saxtrak[ 7] = join(PIVOT, xy({len: 0, ang: -150 + ang.front}));
-          saxtrak[ 8] = join(PIVOT, xy({len: xat, ang: +150 + ang.front}));
-          saxtrak[ 9] = join(SHOCK, xy({len: 4, ang: -60 + ang.front}));
-          saxtrak[10] = join(SHOCK, xy({len: 0, ang: -90 + ang.front}));
-
-          saxtrak[11] = ECCEN_OUT;
-          saxtrak[12] = PIVOT;
-          saxtrak[13] = SHOCK;
-
-          for (let i = 0; i < saxtrak.length; i++) {
-            Object.defineProperty(saxtrak[i], 'geo', {value: false, writable: true});
-            if (i >= 11) saxtrak[i].geo = true;
-          }
-        }
-        function build_forks() {
-
-          // inputs are global xy's TOP & PIVOT
-
-          let axis = polar(PIVOT, TOP);
-          let ref1, ref2, ref3, ref4, ref5, temp;
-
-          // drawing parameters, or things that will never change!
-          const frl = 428; // fork leg length, top-to-spindle
-          const fru =  73; // fork leg length, top to middle of box
-          const fwd =  60; // Fork Leg width
-          const suo =  15; // Steering axis offet upper
-          const slo =  20; // Steering axis offet lower
-          const yko =  40; // distance top of yoke to steering head reference 
-          const ykl =  90; // depth of yoke body
-          const swd =  40; // Sliders width
-          const sln = 550; // slider length
-
-          // variable parameters to adjust
-          const fro = -6; // Insert offset, +5mm lowered, -5mm is raised
-          const frt = fru + fro; // Fork top above pivot (55mm)
-          const frb = frl - frt; // Fork bottom below pivot (445mm)
-          const ftp = 75; // Distance forks pass through yoke (clip-ons don't count)
-
-          ang.rake = axis.ang;		// angle of PIVOT relative to steering head TOP. I.e. approx 270-24 =246
-          length.head = axis.len; // length
-          ang.forks = ang.rake - deg (Math.atan((slo - suo) / (length.head - yko)) );
-
-          ref1 = join(TOP, 	 xy({len:yko, ang: ang.forks    }));	// plane of top of yoke
-          ref2 = join(ref1,	 xy({len:suo, ang: ang.forks -90}));  // center line of sliders at yoke top
-          ref3 = join(PIVOT, xy({len:slo, ang: ang.forks -90}));	// centre line of sliders at lower offset
-          ref4 = join(ref2,  xy({len:ftp, ang: ang.forks-180}));  // sliders top
-          ref5 = join(ref4,  xy({len:sln, ang: ang.forks    }));  // sliders bottom
-          FWS  = join(ref3,  xy({len:frb, ang: ang.forks    }));	// Front wheel spindle
-
-          temp = polar({x: fwd/2, y: frt});
-
-          stanchion[0] = join(FWS, 		xy(nothing));
-          stanchion[1] = join(FWS, 		xy({len: fwd, 			ang: ang.forks -90 -60}));
-          stanchion[2] = join(ref3, 	xy({len: temp.len, 	ang: ang.forks +180 +(90-temp.ang)}));
-          stanchion[3] = join(ref3, 	xy({len: temp.len, 	ang: ang.forks +180 -(90-temp.ang)}));
-          stanchion[4] = join(ref3, 	xy({len: fwd,      	ang: ang.forks +180 -(90-60)}));
-          stanchion[5] = join(PIVOT,	xy(nothing));
-          stanchion[6] = join(ref3, 	xy({len: fwd,   		ang: ang.forks +30}));
-          stanchion[7] = join(FWS, 		xy({len: fwd, 			ang: ang.forks +90 +60}));
-          stanchion[8] = join(FWS, 		xy(nothing));
-
-          stanchion[9] = FWS;
-
-          for (let i = 0; i < stanchion.length; i++) {
-            Object.defineProperty(stanchion[i], 'geo', {value: false, writable: true});
-            if (i >= 9) stanchion[i].geo = true;
-          }
-
-          sliders[0] = join(ref4, 		xy({len: swd/2, ang: ang.forks -90}));
-          sliders[1] = join(ref4, 		xy({len: swd/2, ang: ang.forks +90}));
-          sliders[2] = join(ref5, 		xy({len: swd/2, ang: ang.forks +90}));
-          sliders[3] = join(ref5, 		xy({len: swd/2, ang: ang.forks -90}));
-          sliders[4] = join(ref4, 		xy({len: swd/2, ang: ang.forks -90}));
-
-          for (let i = 0; i < sliders.length; i++) {
-            Object.defineProperty(sliders[i], 'geo', {value: false, writable: true});
-          }
-
-          temp = polar({x: fwd/2, y: -ykl});
-
-          yoke[0] = join(TOP, 		xy(nothing));
-          yoke[1] = join(ref2, 		xy(nothing));
-          yoke[2] = join(ref2, 		xy({len:fwd/2, ang: ang.forks -90}));
-          yoke[3] = join(ref2, 		xy({len: temp.len, 	ang: ang.forks +180 +(90-temp.ang)}));
-          yoke[4] = join(ref2, 		xy({len: temp.len, 	ang: ang.forks +180 -(90-temp.ang)}));
-          yoke[5] = join(ref2, 		xy({len:fwd/2, ang: ang.forks +90}));
-          yoke[6] = join(TOP, 		xy(nothing));
-
-          for (let i = 0; i < yoke.length; i++) {
-            Object.defineProperty(yoke[i], 'geo', {value: false, writable: true});
-          }
-        }
-        function build_wheel(position, width, aspect, compliance = 0) {
-
-          var radius1 = ((17 / 2 * 25.4) + (width * 25.4) * aspect / 100);
-
-
-          /*
-          var radius2 =  (17 / 2 * 25.4); 
-
-          var delta = deg(Math.acos((radius1 - compliance) / radius1));
-          var tyre_start = rad(270 + delta);
-          var tyre_stop = rad(270 - delta);
-
-          // render an arc
-          // arc takes x, y, radius, startangle, endangle and anticlockwise
-          // to render full circle pass 0 and 2*Math.PI as the values for start and end angle
-          ctx.beginPath();
-          ctx.arc(x, y, radius1, tyre_start, tyre_stop, false);
-          ctx.fillStyle = "darkgrey";
-          ctx.fill();
-
-          ctx.beginPath();
-          ctx.arc(x, y, radius2, tyre_start, tyre_stop, false);
-          ctx.fillStyle = "white";
-          ctx.fill();
-          */
-          return join(position, xy({len: (radius1 - compliance), ang: 270}));
-        }
+    ctx.beginPath();
+    ctx.arc(x, y, radius2, tyre_start, tyre_stop, false);
+    ctx.fillStyle = "white";
+    ctx.fill();
+		*/
+		return join(position, xy({len: (radius1 - compliance), ang: 270}));
+  }
 	function build_front(shock_length) {
 		frontShock = build_shock(10, 29, 5, 297, 291, 254);
 		build_saxtrak(shock_length);	
@@ -898,173 +1044,183 @@
 		let chain = {x: temp.len, y: (radius.sprocket_rr - radius.sprocket_fr)};
 		ang.chain = polar(chain).ang + temp.ang;	
 	}
-        function build_all() {
-          build_frame(ang.frame);			 // Must be called first to setup main xy locations
-          build_front(length.front);
-          build_rear(length.rear);
-          build_CofG();
-          COFG = xy(CofG[0]);
-          mass.total = CofG[0].mass
-          //console.log(CofG);
-        }
+	function build_all() {
+	  build_frame(ang.frame);			 // Must be called first to setup main xy locations
+		build_front(length.front);
+		build_rear(length.rear);
+		build_CofG();
+		COFG = xy(CofG[0]);
+		mass.total = CofG[0].mass
+		//console.log(CofG);
+	}
+	
+// Top level functions	
+  function drawBike() {
+		ctx.globalAlpha = 0.5;
+		drawChain();
+		drawComponent(frame);
+		drawEccentric();
+		drawComponent(saxtrak);
+		drawComponent(stanchion);
+		drawComponent(sliders);
+		drawComponent(yoke);
+		drawComponent(beam);
+		drawComponent(linkage);
+		drawComponent(swingarm);
+		drawWheel(FWS, 3.5, 70, 10);
+		drawWheel(RWS, 5.5, 55, 10);
 
-      // Top level functions	
-        function drawBike() {
-          ctx.globalAlpha = 0.5;
-          drawChain();
-          drawComponent(frame);
-          drawEccentric();
-          drawComponent(saxtrak);
-          drawComponent(stanchion);
-          drawComponent(sliders);
-          drawComponent(yoke);
-          drawComponent(beam);
-          drawComponent(linkage);
-          drawComponent(swingarm);
-          drawWheel(FWS, 3.5, 70, 10);
-          drawWheel(RWS, 5.5, 55, 10);
+		ctx.globalAlpha = 1.0;
+		
+		ctx.beginPath();
+		drawLine(canvas[0], TOP.x, TOP.y, join(TOP, xy({len:990, ang: ang.rake})).x, join(TOP, xy({len:990, ang: ang.rake})).y,
+      "red", 3, true);
+		
+		ctx.transform(1,0,0,-1,0,0);
+		let height = RCP.y;
+		length.trail = (Math.tan(rad(270-ang.rake)) * (TOP.y - FCP.y)) - (TOP.x - FCP.x);
+		//let nTrail = Math.cos(rad(270-ang.rake)) * length.trail;
+				
+		ctx.font = "40px Arial";
+		ctx.fillStyle = "black";
+		ctx.beginPath();
+		ctx.fillText(length.wheelbase.toFixed(0) + ' mm', COFG.x -90, -height -10);
+		ctx.fillText((COFG.y-height).toFixed(0) + ' mm', COFG.x -70, -COFG.y+90);
+		ctx.fillText((270 -ang.rake).toFixed(1) + String.fromCharCode(176), TOP.x -30, -TOP.y-70);
+		ctx.fillText(length.trail.toFixed(1) + ' mm', FCP.x -170, -height -10);
+		ctx.fillText((  0-ang.rear ).toFixed(2) + String.fromCharCode(176), 50, +15 -50*Math.sin(rad(ang.rear)));
+		ctx.fillText((180-ang.front).toFixed(1) + String.fromCharCode(176), ECCEN_OUT.x -105, -ECCEN_OUT.y +15 -105*Math.sin(rad(ang.front)));
+		if (acc.forward > 0.1) ctx.fillText(acc.forward + ' G', COFG.x +mass.total*acc.forward +10, -COFG.y +10);
+		if (acc.forward < -0.1) ctx.fillText(acc.forward + ' G', COFG.x +mass.total*acc.forward -150, -COFG.y +10);
+		ctx.fillText('Motion Ratio', FCP.x -120, -height +70);
+		ctx.fillText(motion_ratio[0].len.toFixed(2) + ' @ ' + motion_ratio[0].ang.toFixed(1) + String.fromCharCode(176), FCP.x -120, -height +110);
+		ctx.fillText('Motion Ratio', RCP.x -120, -height +70);
+		ctx.fillText(motion_ratio[1].len.toFixed(2) + ' @ ' + motion_ratio[1].ang.toFixed(2) + String.fromCharCode(176), RCP.x -120, -height +110);
+		
+		
+		ctx.transform(1,0,0,-1,0,0);
 
-          ctx.globalAlpha = 1.0;
+  }
+  function resolve() {
 
-          ctx.beginPath();
-          drawLine(canvas[0], TOP.x, TOP.y, join(TOP, xy({len:990, ang: ang.rake})).x, join(TOP, xy({len:990, ang: ang.rake})).y,
-            "red", 3, true);
+    var err;
+    let last_pass = 10;
 
-          ctx.transform(1,0,0,-1,0,0);
-          let height = RCP.y;
-          length.trail = (Math.tan(rad(270-ang.rake)) * (TOP.y - FCP.y)) - (TOP.x - FCP.x);
-          //let nTrail = Math.cos(rad(270-ang.rake)) * length.trail;
+    for (let k = 0; k <= last_pass; k++) {
+			build_all();
+      err = polar(FCP, RCP);
+      ang.frame = ang.frame + (180 - err.ang);
 
-          ctx.font = "40px Arial";
-          ctx.fillStyle = "black";
-          ctx.beginPath();
-          ctx.fillText(length.wheelbase.toFixed(0) + ' mm', COFG.x -90, -height -10);
-          ctx.fillText((COFG.y-height).toFixed(0) + ' mm', COFG.x -70, -COFG.y+90);
-          ctx.fillText((270 -ang.rake).toFixed(1) + String.fromCharCode(176), TOP.x -30, -TOP.y-70);
-          ctx.fillText(length.trail.toFixed(1) + ' mm', FCP.x -170, -height -10);
-          ctx.fillText((  0-ang.rear ).toFixed(2) + String.fromCharCode(176), 50, +15 -50*Math.sin(rad(ang.rear)));
-          ctx.fillText((180-ang.front).toFixed(1) + String.fromCharCode(176), ECCEN_OUT.x -105, -ECCEN_OUT.y +15 -105*Math.sin(rad(ang.front)));
-          if (acc.forward > 0.1) ctx.fillText(acc.forward + ' G', COFG.x +mass.total*acc.forward +10, -COFG.y +10);
-          if (acc.forward < -0.1) ctx.fillText(acc.forward + ' G', COFG.x +mass.total*acc.forward -150, -COFG.y +10);
-          ctx.fillText('Motion Ratio', FCP.x -120, -height +70);
-          ctx.fillText(motion_ratio[0].len.toFixed(2) + ' @ ' + motion_ratio[0].ang.toFixed(1) + String.fromCharCode(176), FCP.x -120, -height +110);
-          ctx.fillText('Motion Ratio', RCP.x -120, -height +70);
-          ctx.fillText(motion_ratio[1].len.toFixed(2) + ' @ ' + motion_ratio[1].ang.toFixed(2) + String.fromCharCode(176), RCP.x -120, -height +110);
-
-
-          ctx.transform(1,0,0,-1,0,0);
-
-        }
-        function resolve() {
-
-          var err;
-          let last_pass = 10;
-
-          for (let k = 0; k <= last_pass; k++) {
-            build_all();
-            err = polar(FCP, RCP);
-            ang.frame = ang.frame + (180 - err.ang);
-
-            build_all();
-
-            let delta = 0.05;
-            build_front(length.front +delta);
-            let fw_p = FWS;
-            build_front(length.front -delta);
-            let fw_m = FWS;
-            motion_ratio[0] = polar(fw_m, fw_p);
-            motion_ratio[0].len *= 1/(2*delta);
-            motion_ratio[0].ang -= 90;
-            let shock_rate_front = (Fr_force(length.front - delta) - Fr_force(length.front + delta)) /(2*delta);
-
-            build_rear(length.rear +delta);
-            let rw_p = RWS;
-            build_rear(length.rear -delta);
-            let rw_m = RWS;
-            motion_ratio[1] = polar(rw_m, rw_p);
-            motion_ratio[1].len *= 1/(2*delta);
-            motion_ratio[1].ang -= 90;
-            let shock_rate_rear = (Rr_force(length.rear - delta) - Rr_force(length.rear + delta)) /(2*delta);
-            
-            build_all();
-            length.wheelbase = polar(FCP, RCP).len;
-
-            let CofG_height = COFG.y - RCP.y; // mm
-            let CofG_Rr = (COFG.x - FWS.x) / length.wheelbase; // 51% distance from front
-            let CofG_Fr = 1 - CofG_Rr;
-
-            // Calculate forces
-            front_force.vbase = mass.total * CofG_Fr;
-            rear_force.vbase =  mass.total * CofG_Rr;
-            var moment = acc.forward * mass.total * CofG_height;
-            front_force.vtransfer = -moment / length.wheelbase;
-            rear_force.vtransfer =  +moment / length.wheelbase;
-            var hbrake = 0;
-            var hdrive = 0;
-            if (acc.forward > 0) hdrive = mass.total * acc.forward;
-            if (acc.forward < 0) hbrake = mass.total * acc.forward;
-
-            let draw = 0;
-            if (k == last_pass) draw = 3;
-
-            front_force.pbase =			vector({len: front_force.vbase, 		ang: 90},	+(motion_ratio[0].ang),	FCP, draw).x; 
-            front_force.ptransfer =	vector({len: front_force.vtransfer,	ang: 90}, +(motion_ratio[0].ang),	FCP, draw).x;
-            front_force.pbrake =		vector({len: hbrake, 								ang:180}, +(motion_ratio[0].ang),	FCP, draw).y;
-            front_force.pvector = 	front_force.pbase + front_force.ptransfer + front_force.pbrake;
-            var dive = 100 * front_force.pbrake / front_force.ptransfer;
-
-            let chain_pull = hdrive * radius.rear / radius.sprocket_rr;
-            rear_force.pbase = 			vector({len: rear_force.vbase, 			ang: 90},	+(motion_ratio[1].ang),	RCP, draw).x; 
-            rear_force.ptransfer = 	vector({len: rear_force.vtransfer, 	ang: 90}, +(motion_ratio[1].ang), RCP, draw).x;
-            rear_force.pchain = 		vector({len: chain_pull, 		 ang: ang.chain},	+(motion_ratio[1].ang), join(RWS, xy({len: radius.sprocket_rr, ang: 			ang.chain -90})), 	draw).y;	 // anti-squat from chain
-            rear_force.pdrive = 		vector({len: hdrive, 								ang:180}, +(motion_ratio[1].ang),	RCP, draw).y; // anti-squat from chain
-            rear_force.pvector =		rear_force.pbase + rear_force.ptransfer + rear_force.pchain + rear_force.pdrive;
-            var squat = 		100 * (rear_force.pchain + rear_force.pdrive) / rear_force.ptransfer;
-
-            let ang1 = Math.atan(acc.forward);	// in rad
-            let mag1 = mass.total / Math.cos(ang1);
-            let temp2 = vector({len:mag1, ang: +270 +deg(ang1)}, deg(-ang1), COFG, draw);
-	/*
-            front_force.perror =	(Fr_force(length.front) / motion_ratio[0].len) - front_force.pvector;
-            rear_force.perror = 	(Rr_force(length.rear) 	/ motion_ratio[1].len) - rear_force.pvector;
-            
-            let damping = 0.5;
-            length.front += damping * front_force.perror 	/ (shock_rate_front / motion_ratio[0].len);
-            length.rear += 	damping *	rear_force.perror 	/	(shock_rate_rear 	/ motion_ratio[1].len );
-           
-		length.front = Fr_length(front_force.pvector * motion_ratio[0].len).length;
-		length.rear  = Rr_length(rear_force.pvector  * motion_ratio[1].len).length;
-	*/ 
-      		length.front  = Shockcurve(frontShock, {force:(front_force.pvector  * motion_ratio[0].len)}).length;
-		length.rear  =  Shockcurve( rearShock, {force:( rear_force.pvector  * motion_ratio[1].len)}).length;
+      build_all();
 			
-            // renders the diagram based on front & rear shock length as parameters
-            build_all();
-          }
-        }
-        function render() {
-          drawGrid();	// also clears the canvas
-          resolve();
-          drawFrontGraph(length.front);
-          drawRearGraph(length.rear);
-          drawBike();
-          drawCofG();
-          drawGround();
-          let temp = '';
-          for (let t=0; t<text.length; t++) {
-            temp += text[t] + '\n';
-          }
-          document.getElementById("results").innerHTML = temp;
-        }
+			let delta = 0.5;
+			build_front(length.front +delta);
+      let fw_p = FWS;
+			build_front(length.front -delta);
+			let fw_m = FWS;
+			motion_ratio[0] = polar(fw_m, fw_p);
+			motion_ratio[0].ang -= 90;
+			//let shock_rate_front = Fr_force(length.front - 0.5) - Fr_force(length.front + 0.5);
+			
+			//text[text.length+1] = k + " Front: " + motion_ratio_front.len.toFixed(2) + '<' + motion_ratio_front.ang.toFixed(1) + ' ' + shock_rate_front.toFixed(1) + ' \n';
+			
+			build_rear(length.rear +0.5);
+      let rw_p = RWS;
+			build_rear(length.rear -0.5);
+      let rw_m = RWS;
+      motion_ratio[1] = polar(rw_m, rw_p);
+			motion_ratio[1].ang -= 90;
+      //let shock_rate_rear = Rr_force(length.rear - 0.5) - Rr_force(length.rear + 0.5);
+			//console.log(k, err, motion_ratio_front.len, motion_ratio_rear.len);
+			//console.log(motion_ratio_rear);
+			//text[text.length+1] = k + " Rear: " + motion_ratio_rear.len.toFixed(2) + '<' + motion_ratio_rear.ang.toFixed(1) + ' ' + shock_rate_front.toFixed(1) + ' \n';
+			
+			build_all();
+			length.wheelbase = polar(FCP, RCP).len;
+			//length.wheelbase = RCP.x - FCP.x;
+			
+      let CofG_height = COFG.y - RCP.y; // mm
+      let CofG_Rr = +(COFG.x - FWS.x) / length.wheelbase; // 51% distance from front
+			let CofG_Fr = -(COFG.x - RWS.x) / length.wheelbase;
+			
+      // Calculate forces
+      front_force.vbase = mass.total * CofG_Fr;
+      rear_force.vbase =  mass.total * CofG_Rr;
+			
+			var moment = acc.forward * mass.total * CofG_height;
+      front_force.vtransfer = -moment / length.wheelbase;
+      rear_force.vtransfer =  +moment / length.wheelbase;
+      var hbrake = 0;
+      var hdrive = 0;
+      if (acc.forward > 0) hdrive = mass.total * acc.forward;
+      if (acc.forward < 0) hbrake = mass.total * acc.forward;
+	
+			let draw = 0;
+			if (k == last_pass) draw = 3;
+      
+			front_force.pbase =			vector({len: front_force.vbase, 		ang: 90},	+(motion_ratio[0].ang),	FCP, draw).x; 
+			front_force.ptransfer =	vector({len: front_force.vtransfer,	ang: 90}, +(motion_ratio[0].ang),	FCP, draw).x;
+			front_force.pbrake =		vector({len: hbrake, 								ang:180}, +(motion_ratio[0].ang),	FCP, draw).y;
+			//front_force.pwheel =		vector({len: mass.front,						ang:270}, +(motion_ratio[0].ang), FWS, draw).x;
+			front_force.pvector = 	front_force.pbase + front_force.ptransfer + front_force.pbrake;
+			var dive = 100 * front_force.pbrake / front_force.ptransfer;
+			
+			let chain_pull = hdrive * radius.rear / radius.sprocket_rr;
+			rear_force.pbase = 			vector({len: rear_force.vbase, 			ang: 90},	+(motion_ratio[1].ang),	RCP, draw).x; 
+			rear_force.ptransfer = 	vector({len: rear_force.vtransfer, 	ang: 90}, +(motion_ratio[1].ang), RCP, draw).x;
+      rear_force.pchain = 		vector({len: chain_pull, 		 ang: ang.chain},	+(motion_ratio[1].ang), join(RWS, xy({len: radius.sprocket_rr, ang: 			ang.chain -90})), 	draw).y;	 // anti-squat from chain
+			rear_force.pdrive = 		vector({len: hdrive, 								ang:180}, +(motion_ratio[1].ang),	RCP, draw).y; // anti-squat from chain
+			rear_force.pvector =		rear_force.pbase + rear_force.ptransfer + rear_force.pchain + rear_force.pdrive;
+			var squat = 		100 * (rear_force.pchain + rear_force.pdrive) / rear_force.ptransfer;
+			
+			let ang1 = Math.atan(acc.forward);	// in rad
+			let mag1 = mass.total / Math.cos(ang1);
+			let temp2 = vector({len:mag1, ang: +270 +deg(ang1)}, deg(-ang1), COFG, draw);
+			
+			/*
+      front_force.perror =	(Fr_force(length.front) / motion_ratio[0].len) - front_force.pvector;
+			rear_force.perror = 	(Rr_force(length.rear) 	/ motion_ratio[1].len) - rear_force.pvector;
+      //console.log(error_front, error_rear);
+			let damping = 0.5;
+			length.front += damping * front_force.perror 	/ (shock_rate_front / motion_ratio[0].len);
+      length.rear += 	damping *	rear_force.perror 	/	(shock_rate_rear 	/ motion_ratio[1].len );
+			*/
+			
+			//length.front = Shockcurve(myShock, {len:(front_force.pvector * motion_ratio[0].len)}).length;
+			//length.rear  = Rr_length(rear_force.pvector  * motion_ratio[1].len).length;
+      
+			length.front  = Shockcurve(frontShock, {force:(front_force.pvector  * motion_ratio[0].len)}).length;
+			length.rear  =  Shockcurve( rearShock, {force:( rear_force.pvector  * motion_ratio[1].len)}).length;
+			// renders the diagram based on front & rear shock length as parameters
+      build_all();
+    }
+  }
+	function render() {
+		drawGrid();	// also clears the canvas
+		resolve();
+		drawFrontGraph(frontShock, length.front);
+		drawRearGraph(rearShock, length.rear);
+		drawBike();
+		drawCofG();
+		drawGround();
+		let temp = '';
+		for (let t=0; t<text.length; t++) {
+			temp += text[t] + '\n';
+		}
+		document.getElementById("results").innerHTML = temp;
+	}
 
-        render();
+	render();
+	
+  slider.oninput = function() {
+		acc.forward = parseFloat(this.value).toFixed(2);
+		render();
+		//output.innerHTML = this.value;
+  }
+	
+});
 
-        slider.oninput = function() {
-          acc.forward = parseFloat(this.value).toFixed(2);
-          render();
-          //output.innerHTML = this.value;
-        }
-      });
+
     </script>
   </body>
 </html>
