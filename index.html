@@ -1,280 +1,353 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <style>
-      body { margin: 1px; font-family: Arial, Helvetica, sans-serif; }
-      .sketchpad { width: 100%; border: blue 2px solid; }
-      .slidecontainer { width: 50%; display: inline-block; white-space: nowrap; }
-      .slider:hover { opacity: 1; }
-      .slider {
-        -webkit-appearance: none;
-        width: 100%; height: 15px; border-radius: 5px;
-        background: #d3d3d3; outline: none; opacity: 0.7;
-        -webkit-transition: .2s; transition: opacity .2s;
-      }
-      .slider::-webkit-slider-thumb {
-        -webkit-appearance: none; appearance: none;
-        width: 25px; height: 25px; border-radius: 50%;
-        background: #4CAF50; cursor: pointer;
-      }
-      .slider::-moz-range-thumb {
-        width: 25px; height: 25px; border-radius: 50%;
-        background: #4CAF50; cursor: pointer;
-      }
-    </style>
-  </head>
-  
-  <body>
-    <h3>Saxon675 Sim: Sag, Dive, Squat & Pitch</h3>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <canvas class="sketchpad" id="myFrame" width="1000" height="682"></canvas>
-    <div class="slidecontainer">
-      <a>Brake</a>
-      <input type="range" min="-1.5" max="1.2" step="0.05" value="0.0" class="slider" id="myAccel">
-      <a>Drive</a>
+<html lang="en">
+<title>Saxon675Sim</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+<link rel="stylesheet" href="https://www.w3schools.com/lib/w3-theme-indigo.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto">
+
+<style>
+html,body,h1,h2,h3,h4,h5,h6 {font-family: "Roboto", sans-serif;}
+.w3-sidebar {
+  z-index: 3;
+  width: 250px;
+  top: 43px;
+  bottom: 0;
+  height: inherit;
+}
+.w3-bar {padding-left: 10px;}
+.sketchpad { width: 100%; border: blue 2px solid; }
+.slidecontainer { position:relative; top:-40px; left:50.5%; transform:translateX(-50%); width: 25%; display: inline-block; white-space: nowrap; }
+.slider:hover { opacity: 1; }
+.slider {
+  -webkit-appearance: none;
+  width: 100%; height: 15px; border-radius: 5px;
+  background: #d3d3d3; outline: none; opacity: 0.7;
+  -webkit-transition: .2s; transition: opacity .2s;
+}
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 25px; height: 25px; border-radius: 50%;
+  background: #FF0000; cursor: pointer;
+}
+.slider::-moz-range-thumb {
+  width: 25px; height: 25px; border-radius: 50%;
+  background: #4CAF50; cursor: pointer;
+}
+</style>
+
+<body>
+
+<script src="https://code.jquery.com/jquery-1.9.1.min.js"></script>
+<!-- Navbar -->
+<div class="w3-top">
+  <div class="w3-bar w3-theme w3-top w3-left-align w3-large">
+    <a class="w3-bar-item w3-button w3-right w3-hide-large w3-hover-white w3-large"
+        href="javascript:void(0)" onclick="w3_open()"><i class="fa fa-bars"></i></a>
+    <a class="w3-bar-item">Saxon675 Chassis Simulator</a>
+  </div>
+</div>
+<!-- Sidebar -->
+<nav class="w3-sidebar w3-bar-block w3-collapse w3-large w3-theme-l5 w3-animate-left" id="mySidebar">
+  <a href="javascript:void(0)" onclick="w3_close()" class="w3-right w3-xlarge w3-padding-large w3-hover-black w3-hide-large" title="Close Menu">
+    <i class="fa fa-remove"></i>
+  </a>
+  <h4 class="w3-bar-item"><b>Notes:</b></h4>
+  <a class="w3-bar-item">This sim provides a live calculation of the key parameters of the Saxon675 chassis</a>
+  <a class="w3-bar-item">Various chassis and suspension parameters can be tuned to achieve the static sag setup</a>
+  <a class="w3-bar-item">Acceleration sliders allow dive & squat pitch control to be visualised at extreme loads</a>
+  <a class="w3-bar-item">Slide the <span style="color:red">red dot</span> to see the effects of acceleration</a>
+  <div id="dump" style="white-space: pre-wrap"></div>
+</nav>
+<!-- Overlay effect when opening sidebar on small screens -->
+<div class="w3-overlay w3-hide-large" onclick="w3_close()" style="cursor:pointer" title="close side menu" id="myOverlay"></div>
+<!-- Main content: shift it to the right by 250 pixels when the sidebar is visible -->
+<div class="w3-main" id="theTop" style="margin-left:250px">
+
+  <div class="w3-row w3-padding-24">
+  </div>
+
+  <canvas class="sketchpad" id="myFrame" width="1000" height="700"></canvas>
+  <div class="slidecontainer">
+    <input type="range" min="-1.3" max="1.3" step="0.01" value="0.0" class="slider" id="myAccel">
+  </div>
+  <!-- <div id="results" style="white-space: pre-wrap" /> -->
+
+  <button onclick="myAccFunc('Graphs')" class="w3-padding w3-theme w3-button w3-block w3-left-align">Graphs</button>
+  <div id="Graphs" class="w3-hide">
+    <canvas class="sketchpad" id="myGraphs" width="1000" height="380"></canvas>
+  </div>
+
+  <button onclick="myAccFunc('Shocks')" class="w3-padding w3-theme w3-button w3-block w3-left-align">Shock Settings</button>
+  <div id="Shocks" class="w3-hide">
+
+  	<div class="w3-half">
+  		<form class="w3-container">
+  			<h5>Front</h5>
+  			<div class="w3-section">
+  				<div id="frontPreloadLabel">Preload: 19 mm</div>
+  				<input class="w3-input" type="range" min="0" max="50" step="1" value=19 id="frontPreload">
+  			</div>
+  			<div class="w3-section">
+  				<div id="frontLengthLabel">Length Adjuster: 0 mm</div>
+  				<input class="w3-input" type="range" min="0" max="50" step="1" value=0 id="frontLength">
+  			</div>
+  			<div class="w3-section">
+  				<div id="frontRateLabel">Spring Rate: 12 kg/mm</div>
+  				<input class="w3-input" type="range" min="6" max="15" step="0.5" value=12 id="frontRate">
+  			</div>
+
+  			<div class="w3-row">
+  				<div class="w3-half">
+  					<input id="milk" class="w3-check" type="checkbox" checked="checked">
+  					<label>Milk</label>
+  					<br>
+  					<input id="sugar" class="w3-check" type="checkbox">
+  					<label>Sugar</label>
+  					<br>
+  					<br>
+  				</div>
+
+  				<div class="w3-half">
+  					<input id="male" class="w3-radio" type="radio" name="gender" value="male" checked>
+  					<label>Male</label>
+  					<br>
+  					<input id="female" class="w3-radio" type="radio" name="gender" value="female">
+  					<label>Female</label>
+  				</div>
+  			</div>
+  		</form>
+  	</div>
+
+  	<div class="w3-half">
+  		<form class="w3-container">
+  			<h5>Rear</h5>
+  			<div class="w3-section">
+  				<label id="rearPreloadLabel">Preload: 13 mm</label>
+  				<input class="w3-input" type="range" min="0" max="50" step="1" value=13 id="rearPreload">
+  			</div>
+  			<div class="w3-section">
+  				<label id="rearLengthLabel">Length Adjuster: 25 mm</label>
+  				<input class="w3-input" type="range" min="0" max="50" step="1" value=25 id="rearLength">
+  			</div>
+  			<div class="w3-section">
+  				<label id="rearRateLabel">Spring Rate: 13 kg/mm</label>
+  				<input class="w3-input" type="range" min="6" max="15" step="0.5" value=13 id="rearRate">
+  			</div>
+
+  			<div class="w3-row">
+  				<div class="w3-half">
+  					<input id="milk" class="w3-check" type="checkbox" checked="checked">
+  					<label>Milk</label>
+  					<br>
+  					<input id="sugar" class="w3-check" type="checkbox">
+  					<label>Sugar</label>
+  					<br>
+  					<br>
+  				</div>
+
+  				<div class="w3-half">
+  					<input id="male" class="w3-radio" type="radio" name="gender" value="male" checked>
+  					<label>Male</label>
+  					<br>
+  					<input id="female" class="w3-radio" type="radio" name="gender" value="female">
+  					<label>Female</label>
+  				</div>
+  			</div>
+  		</form>
+  	</div>
+  	<br>
+  </div>
+
+  <button onclick="myAccFunc('Geometry')" class="w3-padding w3-theme w3-button w3-block w3-left-align">Chassis Geometry</button>
+  <div id="Geometry" class="w3-hide">
+    <div class="w3-half">
+      <form class="w3-container">
+        <h5>Rake & Dive Eccentric Helper</h5>
+        <div class="w3-section">
+          <div style="text-align: center" id="rakeTargetLabel"><span style="float:left">Slow</span><span>Rake</span><span style="float:right">Fast</span></div>
+          <input class="w3-input" type="range" min="-20.5" max="20.5" step="0.5" value=-11 id="rakeTarget">
+        </div>
+        <div class="w3-section">
+          <div style="text-align: center" id="diveTargetLabel"><span style="float:left">Anti-</span><span>Dive</span><span style="float:right">-Pro</span></div>
+          <input class="w3-input" type="range" min="-18.5" max="18.5" step="0.5" value=-18.5 id="diveTarget">
+        </div>
+      </form>
     </div>
-    <div id="results" style="white-space: pre-wrap" />
-    
-    <script src="https://code.jquery.com/jquery-1.9.1.min.js"></script>
-    <script>
-  // CofG for bike & fuel & rider need to rotate relative to frame
-// Add chain pull
+
+    <div class="w3-half">
+      <form class="w3-container">
+        <h5>Chassis Adjuster Settings</h5>
+        <div class="w3-section" style="text-align: center">
+          <div id="steeringInsertLabel" style="white-space: nowrap">\tSteering Insert</div>
+          <hr>
+          <div id="forksInsertLabel" style="white-space: pre-wrap">\tForks Insert</div>
+          <hr>
+          <div id="EccentricLabel" style="white-space: pre-wrap">\tEccentric Angle</div>
+          <hr>
+        </div>
+      </form>
+    </div>
+    <br>
+  </div>
+  <button onclick="myAccFunc('Drivetrain')" class="w3-padding w3-theme w3-button w3-block w3-left-align">Drivetrain</button>
+  <div id="Drivetrain" class="w3-hide w3-black">
+    <div class="w3-container">
+      <p>Chain settings here</p>
+    </div>
+  </div>
+  <button onclick="myAccFunc('Tyres')" class="w3-padding w3-theme w3-button w3-block w3-left-align">Tyres</button>
+  <div id="Tyres" class="w3-hide w3-black">
+    <div class="w3-container">
+      <p>Tyre settings will be added here</p>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="w3-container w3-theme-dark w3-padding-16">
+    <h5>Useful references</h5>
+    <p>WebApp powered by <a href="https://www.w3schools.com/w3css/default.asp" target="_blank">w3.css</a></p>
+    <div style="position:relative;bottom:55px;" class="w3-tooltip w3-right">
+      <span class="w3-text w3-theme-light w3-padding">Go To Top</span> 
+      <a class="w3-text-white" href="#theTop"><span class="w3-xlarge">
+      <i class="fa fa-chevron-circle-up"></i></span></a>
+    </div>
+  </footer>
+
+</div>  <!-- end of the main section -->
+
+<script>
 // Option to exit loop when error is small enough
 // visual indicator of convergence
 // arrows to indicate forces (sign, magnitude and angle)
 // tyre flat spots based on loads vs psi
 // improve shock images
 // overlay real images
-// text boxes for inputs and outputs
 // sliders for some variables
 // separate file for parameters
-// rounding of output values
-// FCP & RCP go bad for extreme acc
 
 $(document).ready(function() {
 
-  var radius = { front: 280, rear: 300, eccentric: 40,
-    sprocket_fr: (15 * 15.88 / 2 / Math.PI),
-    sprocket_rr: 49 * 15.88 / 2 / Math.PI
-  };
-	var CofG = [];
-	var mass = {total: 250, frame:120, fuel:15, rider:110, front:20, rear:25};
-  var length = {
-    front: 290,		// front shock length
-    head: 330,		// Steering head, separation between bearings
-    rear: 330,		// rear shock length
-		gap: 330,
-		wheelbase: 1420,
-		trail: 0,
-		Fr_shock_min:200,
-		Fr_shock_max:350,
-		Rr_shock_min:200,
-		Rr_shock_max:350,
-    swingarm_pickup: 200	// length of pickup. Needs to be global to align link & swingarm 
-  };
-  var ang = { frame: -27, eccen: 0,
-							front: 0, shock_fr: 0, rake: 0, forks: 0,
-    					rear: 0, shock_rr: 0, beam: 0, link: 0, chain: 0 };
-	var front_force = {vbase:0, vtransfer:0, perror:0, pbase:0, ptransfer:0, pbrake:0};
-	var rear_force =  {vbase:0, vtransfer:0, perror:0, pbase:0, ptransfer:0, pdrive:0, pchain:0};
-	var motion_ratio = [];
-  var acc = { forward: 0.0, side: 0 };
-  var FWS, RWS, FCP, RCP, ECCEN_IN, ECCEN_OUT, TOP, PIVOT, P_UP_FR, P_UP_RR, SPROCKET, COFG; // Global x,y points
-  var frame = [], saxtrak = [], stanchion = [], sliders = [], yoke = [];
-	var beam =  [], linkage = [], swingarm = [];
-	var frontShock; var rearShock;
-	const nothing = {len:0, ang:0};
-	const delta =   {len:5, ang:0};
-	
-	var canvas = document.getElementById("myFrame"); 
-	var ctx = canvas.getContext("2d");
-  var slider = document.getElementById("myAccel");
-  var output = document.getElementById("results");
-	var text = [];
-	
+var radius = { front: 280, rear: 300, eccentric: 40,
+sprocket_fr: (15 * 15.88 / 2 / Math.PI),
+sprocket_rr: 49 * 15.88 / 2 / Math.PI
+};
+var CofG = [];
+var mass = {total: 250, frame:120, fuel:15, rider:110, front:20, rear:25};
+var length = {
+front: 290,		// front shock length
+head: 330,		// Steering head, separation between bearings
+rear: 330,		// rear shock length
+gap: 330,
+wheelbase: 1420,
+trail: 0,
+swingarm_pickup: 200	// length of pickup. Needs to be global to align link & swingarm
+};
+var setting = {steering:7, forks:5, angle:0};          // stores 3 frame adjusters
+var ang = { frame: -27, eccen: 0,
+          front: 0, shock_fr: 0, rake: 0, forks: 0,
+          rear: 0, shock_rr: 0, beam: 0, link: 0, chain: 0 };
+var front_force = {vbase:0, vtransfer:0, perror:0, pbase:0, ptransfer:0, pbrake:0};
+var rear_force =  {vbase:0, vtransfer:0, perror:0, pbase:0, ptransfer:0, pdrive:0, pchain:0};
+var motion_ratio = [];
+var acc = { forward: 0.0, side: 0 };
+var FWS, RWS, FCP, RCP, ECCEN_IN, ECCEN_OUT, TOP, PIVOT, P_UP_FR, P_UP_RR, SPROCKET, COFG; // Global x,y points
+var frame = [], saxtrak = [], stanchion = [], sliders = [], yoke = [];
+var beam =  [], linkage = [], swingarm = [];
+var frontShock; var rearShock;
+const nothing = {len:0, ang:0};
+const delta =   {len:5, ang:0};
+
+var canvas = document.getElementById("myFrame");
+var ctx = canvas.getContext("2d");
+
+var graph_canvas = document.getElementById("myGraphs");
+var graphs = graph_canvas.getContext("2d");
+
+var Acceleration = document.getElementById("myAccel");
+var frontPreload = document.getElementById("frontPreload");
+var frontLength = document.getElementById("frontLength");
+var frontRate = document.getElementById("frontRate");
+var rearPreload = document.getElementById("rearPreload");
+var rearLength = document.getElementById("rearLength");
+var rearRate = document.getElementById("rearRate");
+var frontPreloadLabel = document.getElementById("frontPreloadLabel");
+var frontLengthLabel = document.getElementById("frontLengthLabel");
+var frontRateLabel = document.getElementById("frontRateLabel");
+var rearPreloadLabel = document.getElementById("rearPreloadLabel");
+var rearLengthLabel = document.getElementById("rearLengthLabel");
+var rearRateLabel = document.getElementById("rearRateLabel");
+
+//var output = document.getElementById("results");
+var text = [];
+
 // Helper functions
-  function deg(rad) {
-    return (rad * 360 / 2 / Math.PI);
-  }
-  function rad(deg) {
-    return (deg / 360 * 2 * Math.PI);
-  }
-  function cosine(a, b, C) {
-    // c2 = a2 + b2 − 2ab cos(C)
+  function deg(rad) { return (rad * 360 / 2 / Math.PI); }
+  function rad(deg) { return (deg / 360 * 2 * Math.PI); }
+  function cosine(a, b, C) { // c2 = a2 + b2 − 2ab cos(C)
     return Math.pow(Math.pow(a, 2) + Math.pow(b, 2) - 2 * a * b * Math.cos(C), 0.5);
   }
-  function acosine(a, b, c) {
-    // cos(C) = (a2 + b2 - c2)/(2*a*b)
+  function acosine(a, b, c) { // cos(C) = (a2 + b2 - c2)/(2*a*b)
     return Math.acos(((Math.pow(a, 2) + Math.pow(b, 2) - Math.pow(c, 2)) / (2 * a * b)));
   }
-	function polar(a, b = {x:0, y:0}) {
+  function polar(a, b = {x:0, y:0}) {
     let x = (a.x - b.x);
-		let y = (a.y - b.y);
-		let length = Math.pow( Math.pow(x, 2) + Math.pow(y, 2), 0.5);
-		let angle = deg(Math.acos(x / length));
-		if (Math.asin(y/ length) <0) angle = 360 - angle;
-		
-		return {len: length, ang: angle};
+    let y = (a.y - b.y);
+    let length = Math.pow( Math.pow(x, 2) + Math.pow(y, 2), 0.5);
+    let angle = deg(Math.acos(x / length));
+    if (Math.asin(y/ length) <0) angle = 360 - angle;
+    return {len: length, ang: angle};
   }
   function xy(input) { // takes input as polar with .len & .ang, converts to cartesian
     let ang = input.ang * 2 * Math.PI / 360;
     let output = {x: (input.len * Math.cos(ang)) , y: (input.len * Math.sin(ang)) };
-		return output;
+    return output;
   }
   function join(a, b) {
     let output = {x: (a.x + b.x), y: (a.y + b.y) };
     return output;
   }
-	function limit(val, min, max) {
-    return val > max ? max : val < min ? min : val;
-}
-	
-// Suspension functions	
-/*
-	function spring(spring, length) {
-    let force = 0;
-    let body = spring.base + spring.plunger + spring.preload;
-    let gap = length - body;
-    if (spring.rate < 0) {
-			gap = body - length; // this is the top-out spring
-			spring.rate = spring.rate;
-		}
+  function limit(val, min, max) { return val > max ? max : val < min ? min : val; }
+  function eccentric_helper() {
+    var dive = diveTarget.value;
+    var rake = rakeTarget.value;
+    var target = {x: rake/1, y: dive/1};
+    var best = {error:99, steering:-7, forks:-5, angle:0};
 
-    force = spring.rate * (spring.free - gap);
-    if (gap >= spring.free) force = 0;
-    if (gap <= spring.crushed) force = (spring.rate * 12) * (spring.free - gap);
+    for (let steering=-1; steering <=1; steering += 2) {
+      for (let forks=-1; forks <=1; forks += 2) {
+        for (let angle=0; angle <360; angle++) {
+          let option = xy({len:13.5, ang:angle});   // this is a sweep of the eccentri
+          option.x += (steering * 7);       // plus x offset for steering insert
+          option.y += (forks * 5);          // plus y offset for forks insert
+          let error = polar(option, target).len;
+          if (error < best.error) {
+            best.error =    error;
+            best.steering = (steering * 7);
+            best.forks =    (forks * 5);
+            best.angle =    angle;
+          }
+        }
+      }
+    }
+    //dump.innerHTML = 'Err: ' + best.error + ' mm, \nSteer: ' + best.steering + ' mm, \nFork: ' + best.forks + ' mm, \nAng: ' + best.angle + ' deg';
+    steeringInsertLabel.innerHTML = 'Steering Insert: ' + best.steering + ' mm';
+    forksInsertLabel.innerHTML = 'Forks Insert: ' + best.forks + ' mm';
+    EccentricLabel.innerHTML = 'Eccentric Angle: ' + best.angle + ' deg';
+    return best;
+  }
 
-    return force;
-  }
-  function Fr_force(length) {
-    let adjuster = 5; // mm
-    let Front_Main = {
-      base: 47,
-      plunger: 80,
-      preload: 20,
-      free: 170,
-      crushed: 80,
-      rate: 10
-    };
-    let Front_Top_out = {
-      base: 150,
-      plunger: 177,
-      preload: 0,
-      free: 36,
-      crushed: 28,
-      rate: -4.5
-    };
-    let Front_Bump_stop = {
-      base: 65,
-      plunger: 177,
-      preload: 0,
-      free: 12,
-      crushed: 7,
-      rate: 6
-    };
-    let force = spring(Front_Main, length - adjuster) +
-      						spring(Front_Top_out, length - adjuster) +
-      						spring(Front_Bump_stop, length - adjuster);
-    return force;
-  }
-	function Rr_force(length) {
-    let adjuster = 15; // mm
-    let Rear_Main = {
-      base: 47,
-      plunger: 80,
-      preload: 20,
-      free: 170,
-      crushed: 80,
-      rate: 10
-    };
-    let Rear_Top_out = {
-      base: 150,
-      plunger: 177,
-      preload: 0,
-      free: 36,
-      crushed: 28,
-      rate: -4.5
-    };
-    let Rear_Bump_stop = {
-      base: 65,
-      plunger: 177,
-      preload: 0,
-      free: 12,
-      crushed: 7,
-      rate: 6
-    };
-    let force = spring(Rear_Main, length - adjuster) +
-									spring(Rear_Top_out, length - adjuster) +
-									spring(Rear_Bump_stop, length - adjuster);
-    return force;
-  }
-	function Fr_length(force) {
-		let shortest = 240; let middle = 285; let longest = 330;
-		let Fs=0; let Fm=0; let Fl=0;
-		let rate = -10;
-		let i = 20;
-		do {
-			Fs = Fr_force(shortest);
-			Fm = Fr_force(middle);
-			Fl = Fr_force(longest);
-			rate = (Fl - Fs) / (longest-shortest);
-			
-			if ((force<=Fs) && (force>=Fm)) {	//result is in first half between short & middle
-				longest = middle;
-				rate = (Fm - Fs) / (middle-shortest)
-			}
-			else if ((force<Fm) && (force>=Fl)) {	// result is in second half
-				shortest = middle;
-				rate = (Fl - Fm) / (longest-middle)
-			}
-			else {		// result was not in range
-				shortest -= 10;
-				longest += 10;
-			}
-			middle = (longest + shortest) /2;
-			if (Math.abs(Fm-force) < 0.05) break
-			i--;
-		} while (i > 0)
-		return {length:middle, rate:rate, i};
-	}
-	function Rr_length(force) {
-		let shortest = 240; let middle = 285; let longest = 330;
-		let Fs=0; let Fm=0; let Fl=0;
-		let rate = -10;
-		let i = 20;
-		do {
-			Fs = Rr_force(shortest);
-			Fm = Rr_force(middle);
-			Fl = Rr_force(longest);
-			rate = (Fl - Fs) / (longest-shortest);
-			
-			if ((force<=Fs) && (force>=Fm)) {	//result is in first half between short & middle
-				longest = middle;
-				rate = (Fm - Fs) / (middle-shortest)
-			}
-			else if ((force<Fm) && (force>=Fl)) {	// result is in second half
-				shortest = middle;
-				rate = (Fl - Fm) / (longest-middle)
-			}
-			else {		// result was not in range
-				shortest -= 10;
-				longest += 10;
-			}
-			middle = (longest + shortest) /2;
-			if (Math.abs(Fm-force) < 0.05) break
-			i--;
-		} while (i > 0)
-		return {length:middle, rate:rate, i};
-	}
-*/	
-	function build_shock(spring, preload, adjuster, main=297, topout=291, bump=254) {
+// Suspension force
+	function build_shock(spring=10.5, preload=10.1, adjuster=0.1, main=297, topout=291, bump=254) {
 		// assumes params for bump-stop and top-out spring are same front and back
-		// variables are main spring rate, preload setting, length adjuster, plus ... 
-		// length where each spring is engaged. free length 
+		// variables are main spring rate, preload setting, length adjuster, plus ...
+		// length where each spring is engaged. free length
 		// spring is main spring rate in kg/mm
 		// preload is mm of compression of main spring from its free length
 		// adjuster is mm of thread visible
-		
+
 		// Existing rear shock with 0mm adjuster and 20mm preload on 10kg/mm spring
 		// 249mm = 710kg
 		// 254mm = 630kg
@@ -309,42 +382,42 @@ $(document).ready(function() {
     };
 		*/
 
-		let len4 = topout+8 +adjuster; //(Top_out.base + Top_out.plunger - Top_out.crushed + adjuster); 
+		let len4 = topout+8 +adjuster; //(Top_out.base + Top_out.plunger - Top_out.crushed + adjuster);
 		let len3 = topout		+adjuster; //(Top_out.base + Top_out.plunger - Top_out.free + adjuster); 			//measured free length WITHOUT main spring
-		let len2 = bump			+adjuster; //(Bump_stop.base + Bump_stop.plunger + Bump_stop.free + adjuster); 
-		let len1 = bump-5		+adjuster; //(Bump_stop.base + Bump_stop.plunger + Bump_stop.crushed + adjuster); 
-		
-		let rate3 = (spring+4.5); //Top_out.rate);
+		let len2 = bump			+adjuster; //(Bump_stop.base + Bump_stop.plunger + Bump_stop.free + adjuster);
+		let len1 = bump-5		+adjuster; //(Bump_stop.base + Bump_stop.plunger + Bump_stop.crushed + adjuster);
+
+		let rate3 = (spring-4.5); //Top_out.rate);
 		let rate2 = spring;
 		let rate1 = (spring+6.0); //Bump_stop.rate)
-		
-		let f3 = ((main + preload + adjuster) -len3) * spring; // ((Main.base + Main.plunger + Main.free + preload + adjuster) -len3) * spring; 
-		let f2 = f3 + (len3-len2)* rate2; //(len3-len2) * rate3; 
-		let f1 = f2 + (len2-len1)* rate1; 
-		let f4 = f3 + (len3-len4)* rate3; 
+
+		let f3 = ((main + preload + adjuster) -len3) * spring; // ((Main.base + Main.plunger + Main.free + preload + adjuster) -len3) * spring;
+		let f2 = f3 + (len3-len2)* rate2; //(len3-len2) * rate3;
+		let f1 = f2 + (len2-len1)* rate1;
+		let f4 = f3 + (len3-len4)* rate3;
 
 		// points [0] and [5] are to allow >< lookups
 		// points [1] to [4] are also helpful to plot the graph
-		points[0] = {length: len1, force:+2000, rate:1000, 	color:0xFF0000, text:'fully crushed'};
-		points[1] = {length: len1, force: f1, 	rate:rate1, color:'orange', text:'in bump stop'};
-		points[2] = {length: len2, force: f2, 	rate:rate2, color:0x00FF00, text:'linear region'};
-		points[3] = {length: len3, force: f3, 	rate:rate3,	color:'orange', text:'in top-out'};
-		points[4] = {length: len4, force: f4, 	rate:1000, 	color:'red', 		text:'fully extended'};
-		points[5] = {length: len4, force:-1000, rate:1000, 	color:'red', 		text:'fully extended'};
-		return points	
+		points[0] = {length: len1, force:+2000, rate:1000, 	color:'red',    text:'crushed'};
+		points[1] = {length: len1, force: f1, 	rate:rate1, color:'orange', text:'bump stop'};
+		points[2] = {length: len2, force: f2, 	rate:rate2, color:'green',  text:'linear'};
+		points[3] = {length: len3, force: f3, 	rate:rate3,	color:'orange', text:'top-out'};
+		points[4] = {length: len4, force: f4, 	rate:1000, 	color:'red', 		text:'extended'};
+		points[5] = {length: len4, force:-1000, rate:1000, 	color:'red', 		text:'extended'};
+		return points
 	}
 	function Shockcurve(thisShock, input) {
 		let lastPoint; // length & force are x,y co-ords of the point of inflection
 		let nextPoint; // length & force are x,y co-ords of the point of inflection
 		let thisPoint; // = {length:0, force:0, rate:0, color:'blue', text:'blank'}; // length & force are x,y co-ords of the point of inflection
-	
+
 		lastPoint = thisShock[0];
 		for (let y=1; y<thisShock.length; y++) {
 			nextPoint = thisShock[y];
 			if ((nextPoint.length > input.length) || (nextPoint.force < input.force)) break
-			lastPoint = nextPoint;	
+			lastPoint = nextPoint;
 		}
-		
+
 		thisPoint = {rate:lastPoint.rate, color:lastPoint.color, text:lastPoint.text};
 		if (typeof input.force === 'undefined') {
 			thisPoint.force = lastPoint.force - (input.length-lastPoint.length)*lastPoint.rate;
@@ -358,13 +431,12 @@ $(document).ready(function() {
 		}
 		return thisPoint
 	}
-
-	function vector(input_vector, rotation, position={x:0, y:0}, draw=0) { 
+	function vector(input_vector, rotation, position={x:0, y:0}, draw=0) {
 		let input_xy = xy(input_vector);
 		let relative = xy({len: input_vector.len, ang: +rotation});
 		let adj =    xy({len: relative.x, ang: input_vector.ang +rotation});
 		let opp =    xy({len: relative.y, ang: input_vector.ang +rotation -90});
-		
+
 		let H, A, O;
 		if (draw >=1) {
 			ctx.strokeStyle = "blue";
@@ -377,18 +449,18 @@ $(document).ready(function() {
 			ctx.lineTo(H.x, H.y);
 			ctx.stroke();
 		}
-		
+
 		if (draw >=2) {
 			A = join(position, adj);
 			ctx.beginPath();
 			ctx.strokeStyle = "red";
 			ctx.setLineDash([10, 0]);
-			
+
 			ctx.moveTo(position.x, position.y);
 			ctx.lineTo(A.x, A.y);
 			ctx.stroke();
 		}
-		
+
 		if (draw >=3) {
 			O = join(position, opp);
 			ctx.beginPath();
@@ -401,10 +473,10 @@ $(document).ready(function() {
 		ctx.setLineDash([10, 0]);
 		return relative;
 	}
-	
+
 // Rendering functions
   function drawLine(canvasElem, x1, y1, x2, y2, color, lineWidth, dash = false) {
-    //var ctx = canvasElem.getContext("2d");
+    var ctx = graph_canvas.getContext("2d");
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.lineTo(x2, y2);
@@ -415,47 +487,46 @@ $(document).ready(function() {
     ctx.stroke();
     ctx.setLineDash([30, 0]);
   }
-  function setupTransform() {
-		let left = -1300;		let width = 2200;		let right = left+width;
-		let bottom = -500;	let height = 1500;	let top = 	bottom+height;
-		
+  function setupTransform(base = -500) {
+		let left = -1200;		let width = 2100;		let right = left+width;
+		let bottom = base;	let height = 1200;	let top = 	bottom+height;
+
 		let horizontal = { start: left, stop: (left+width) };
     let vertical = { start: bottom, stop: (bottom+height)};
-		
+
     let scaler = canvas.width / width;
-		// canvas.height = height*scaler;
-		
+		canvas.height = height*scaler;
+
     ctx.resetTransform();
 		void ctx.setTransform(scaler, 0, 0, -scaler, -left * scaler, top * scaler);
+    ctx.clearRect(left, bottom, width, height);
+
 	}
-	function drawGrid(base=-500) {
-		let left = -1300;		let width = 2200;		let right = left+width;
-		let bottom = -500;	let height = 1500;	let top = 	bottom+height;
-		
+	function drawGrid() {
+		let left = -10;		let width = 100;	let right = left+width;
+		let bottom = -10;	let height = 100; let top = 	bottom+height;
+
 		let horizontal = { start: left, stop: (left+width) };
     let vertical = { start: bottom, stop: (bottom+height)};
-		
-    setupTransform();
-		ctx.clearRect(left, bottom, width, height);
-		
+
     // draw horizontal lines
-    for (let i = bottom; i < top; i = i + 100) {
+    for (let i = bottom; i <= top; i = i + 10) {
       drawLine(canvas, left, i, right, i, "black", 0.4);
     }
-    drawLine(canvas, left, 0, right, 0, "black", 1);
-		
+    drawLine(graphs, left, 0, right, 0, "black", 1);
+
     // draw vertical lines
-    for (let j = left; j < right; j = j + 100) {
+    for (let j = left; j <= right; j = j + 10) {
       drawLine(canvas, j, bottom, j, top, "black", 0.4);
     }
-    drawLine(canvas, 0, bottom, 0, top, "black", 1);
+    drawLine(graphs, 0, bottom, 0, top, "black", 1);
   }
   function drawComponent(points) {
     // drawing a line
     ctx.beginPath();
 
     ctx.moveTo(points[0].x, points[0].y);
-		
+
     for (i = 1; i < points.length; i++) {
       if (points[i].geo == false) ctx.lineTo(points[i].x, points[i].y);
     }
@@ -511,49 +582,49 @@ $(document).ready(function() {
 			ctx.lineTo(center.x + 100, center.y);
 			ctx.fillStyle = "yellow";
 			ctx.fill();
-			
+
 			ctx.transform(1,0,0,-1,0,0);
-			
+
 			ctx.fillStyle = "black";
 			ctx.font = "40px Arial";
 			ctx.beginPath();
 			ctx.fillText(CofG[j].mass.toFixed(0) + ' kg', center.x -50, -center.y -size*1.4);
-			
+
 			ctx.transform(1,0,0,-1,0,0);
 		}
   }
   function drawChain() {
 		let TEMP = join(SPROCKET, xy({len: radius.sprocket_fr, ang: ang.chain -90 }));
-		
+
     ctx.strokeStyle = "black";
     ctx.lineWidth = 5;
 
     ctx.beginPath();
     ctx.arc(RWS.x, RWS.y, radius.sprocket_rr, rad(130), rad(ang.chain -90), false);
-    ctx.lineTo(TEMP.x, TEMP.y); 
+    ctx.lineTo(TEMP.x, TEMP.y);
     ctx.arc(SPROCKET.x, SPROCKET.y, radius.sprocket_fr, rad(ang.chain -90), rad(70), false);
     ctx.stroke();
   }
 	function drawEccentric () {
-		
+
 		let radius = 30;
 		let angle = ang.frame + ang.eccen;
-		
+
 		ctx.strokeStyle = "black";
     ctx.lineWidth = 5;
-		
+
 		ctx.beginPath();
-    ctx.arc(ECCEN_IN.x, ECCEN_IN.y, radius, rad(angle  +20), rad(angle +160), false); 
+    ctx.arc(ECCEN_IN.x, ECCEN_IN.y, radius, rad(angle  +20), rad(angle +160), false);
 		ctx.stroke();
-		
+
 		ctx.beginPath();
     ctx.arc(ECCEN_IN.x, ECCEN_IN.y, radius, rad(angle +200), rad(angle +340), false);
     ctx.stroke();
 	}
 	function drawWheel(position, width, aspect, compliance = 0) {
-		
+
     var radius1 = ((17 / 2 * 25.4) + (width * 25.4) * aspect / 100);
-    var radius2 =  (17 / 2 * 25.4); 
+    var radius2 =  (17 / 2 * 25.4);
 
     var delta = deg(Math.acos((radius1 - compliance) / radius1));
     var tyre_start = rad(270 + delta);
@@ -563,12 +634,12 @@ $(document).ready(function() {
     // arc takes x, y, radius, startangle, endangle and anticlockwise
     // to render full circle pass 0 and 2*Math.PI as the values for start and end angle
    	ctx.globalCompositeOperation='destination-over';
-	 	
+
 		ctx.beginPath();
     ctx.arc(position.x, position.y, radius2, 0, rad(360), false);
     ctx.fillStyle = "white";
     ctx.fill();
-		
+
 		ctx.beginPath();
     ctx.arc(position.x, position.y, radius1, tyre_start, tyre_stop, false);
     ctx.fillStyle = "darkgrey";
@@ -577,140 +648,219 @@ $(document).ready(function() {
 		ctx.globalCompositeOperation='source-over';
   }
 	function drawFrontGraph(shock, current) {
-		let x_shift = 1.5; let y_shift = 1;
+    let compressed =  shock[1].length;  // 262
+    let extended =    shock[4].length;  // 312
+    let bench =       Shockcurve(shock, {force:0}).length;
+    let min =         Shockcurve(shock, {length:extended-0.001}).force;   // -20
+    let max =         Shockcurve(shock, {length:compressed+0.001}).force; // 680
+
+    let force_tick = 50;
+    let length_tick = 5;
+    let left = Math.floor(min/force_tick)*force_tick;         // -100
+    let right = Math.ceil(max/force_tick)*force_tick;         // 700
+    let bottom = Math.ceil(extended/length_tick)*length_tick; // 315
+    let top = Math.floor(compressed/length_tick)*length_tick; // 260
+
+		let stroke = extended - compressed;   // 50 raw
+		let range = max - min;                // 700 raw
+
 		let size = 100;
-		let step=1;
-		     
-		let stroke = shock[5].length - shock[0].length;	
-		let range = 1000;
-		let cross = 5;
+    let cross = 4; // px. relative to 100px graph
 
-		let scale = (1000/22)*(4/100);	// canvas is 1000px scaled to 22 grid lines. Graph viewpoer is 100px over 4 grid lines
-		let old = ctx.getTransform();
-		void ctx.setTransform(scale, 0, 0, scale, (1000/22*x_shift), (1000/22*y_shift)); // x & y must be scaled equally for text
-		
-		ctx.globalAlpha = 1;
-    ctx.setLineDash([10, 0]);
-    ctx.strokeStyle = "red";
-    ctx.lineWidth = 1;
+    let x_mult = size/(right-left);  // kg       // 1/7
+    let y_mult = size/(bottom-top); // mm       // 2
+		let x_shift = left;       // kg       // -100
+    let y_shift = top;     // mm          // 260
 
-		let y_mult = 100/stroke;
-		let x_mult = 100/range;
-	
-		ctx.beginPath();
-		ctx.moveTo(100, 0);
-		for (let p=1; p< shock.length; p++) {
-			ctx.strokeStyle =  shock[p].color;
-			let x = limit(shock[p].force*x_mult, 0, 100);
-			let y = limit((shock[p].length-shock[0].length )*y_mult, 0, 100);
-			ctx.lineTo(x, y);
+		let scale = (graph_canvas.width * 0.2 /size);	// scaled to 20% of 1000px canvas // 2
+		//let old = ctx.getTransform();
+		void graphs.setTransform(scale, 0, 0, scale, (1000* 0.08), (1000 *0.04)); // x & y must be scaled equally for text
+    graphs.clearRect(-50, -50, 240, 240);
+
+    // Draw gridlines at 50% opacity
+    graphs.globalAlpha = 0.5;
+    // draw horizontal lines
+    for (let y = top; y <= bottom; y += length_tick) {
+      drawLine(graphs, (left-x_shift)*x_mult, (y-y_shift)*y_mult, (right-x_shift)*x_mult, (y-y_shift)*y_mult, "black", 0.4);
+    }
+    // draw vertical lines
+    for (let x = left; x <= right; x += force_tick) {
+      drawLine(graphs, (x-x_shift)*x_mult, (bottom-y_shift)*y_mult, (x-x_shift)*x_mult, (top-y_shift)*y_mult, "black", 0.4);
+    }
+    graphs.globalAlpha = 1;
+    drawLine(graphs, (left-x_shift)*x_mult, (0-y_shift)*y_mult, (right-x_shift)*x_mult, (0-y_shift)*y_mult, "black", 1);
+    drawLine(graphs, (0-x_shift)*x_mult, (bottom-y_shift)*y_mult, (0-x_shift)*x_mult, (top-y_shift)*y_mult, "black", 1);
+
+    graphs.setLineDash([10, 0]);
+    graphs.strokeStyle = "red";
+    graphs.lineWidth = 2;
+
+    var x1; var y1;
+    for (let p=1; p< shock.length; p++) {
+      x1 = limit((shock[p-1].force -x_shift)*x_mult, 0, size); //(min-x_shift)*x_mult, (max-x_shift)*x_mult);
+      y1 = limit((shock[p-1].length-y_shift)*y_mult, 0, size); //(compressed-y_shift)*y_mult, (extended-y_shift)*y_mult);
+      graphs.beginPath();
+      graphs.moveTo(x1, y1);
+			graphs.strokeStyle = shock[p-1].color;
+      x1 = limit((shock[p-0].force -x_shift)*x_mult, 0, size); //(min-x_shift)*x_mult, (max-x_shift)*x_mult);
+      y1 = limit((shock[p-0].length-y_shift)*y_mult, 0, size); //(compressed-y_shift)*y_mult, (extended-y_shift)*y_mult);
+			graphs.lineTo(x1, y1);
+      graphs.stroke();
 		}
-		ctx.stroke();
 
-		let current_force = Shockcurve(shock, {length:current}).force;
-		let x = limit(current_force*x_mult, 0, 100);
-		ctx.beginPath();
-		ctx.setLineDash([5, 1]);
-		ctx.strokeStyle = "blue";
-    ctx.moveTo(x, 100);
-		ctx.lineTo(x,   0);
-		ctx.stroke();
-		
-		ctx.strokeStyle = "blue";
-		ctx.beginPath();
-    ctx.moveTo(0, 				(current-shock[0].length)*y_mult);
-		ctx.lineTo(x +cross, 	(current-shock[0].length)*y_mult);
-		ctx.stroke();
-		
-		ctx.font = "10px Arial";
-		
-		ctx.beginPath();
-		ctx.fillText(current.toFixed(1) + ' mm', -20, (current-shock[0].length)*y_mult -cross)
-		let pct = 100 - (current-shock[0].length)/stroke*100;
-		ctx.fillText(pct.toFixed(1) + ' %', x +(2*cross), (current-shock[0].length)*y_mult +3);
-		ctx.fillText(current_force.toFixed(1) + ' kg', x -15, -5);
-    ctx.fillText(front_force.pbase.toFixed(1) + ' kg base', x -15, 110);
-    ctx.fillText(front_force.ptransfer.toFixed(1) + ' kg transfer', x -15, 120);
-		ctx.fillText(front_force.pbrake.toFixed(1) + ' kg brake', x -15, 130);
+    let temp = Shockcurve(shock, {length:current});
+		let current_force = temp.force;
+		let mode = temp.text;
+		let x = limit((current_force-x_shift)*x_mult, 0, 100);
+    let y = limit((current-y_shift)*y_mult, 0, 100);
+    let label_min = limit((compressed-y_shift)*y_mult, 0, 100);
+    let label_max = limit((extended-y_shift)*y_mult, 0, 100);
+		graphs.beginPath();
+    graphs.lineWidth = 1;
+		graphs.setLineDash([5, 1]);
+		graphs.strokeStyle = "blue";
+
+    graphs.moveTo(x,        0);
+    graphs.lineTo(x,        100);
+    graphs.stroke();
+
+    graphs.strokeStyle = "blue";
+    graphs.beginPath();
+    graphs.moveTo(0,        y);
+    graphs.lineTo(x +cross, y);
+		graphs.stroke();
+
+		graphs.font = "10px Arial";
+
+		graphs.beginPath();
+    if (y >25) graphs.fillText(compressed.toFixed(1),                              -30, label_min+cross);
+    if (y <75) graphs.fillText(extended.toFixed(1),                                -30, label_max+cross);
+    graphs.fillText(current.toFixed(1),                                 -30,          y       -cross);
+		graphs.fillText('mm',                                               -22,          y       +cross);
+    let pct = 100 - (current-compressed)/stroke*100;
+		graphs.fillText(pct.toFixed(1) + ' %',                              x +(2*cross), y             );
+    graphs.fillText(mode,                                               x +(2*cross), y    +(2*cross));
+		graphs.fillText(current_force.toFixed(1) + ' kg',                   x -15,                -cross);
+    graphs.fillText(front_force.pbase.toFixed(1) + ' kg base',          x -15,        100+10  +cross);
+    graphs.fillText(front_force.ptransfer.toFixed(1) + ' kg transfer',  x -15,        100+20  +cross);
+    graphs.fillText(front_force.pwheel.toFixed(1) + ' kg wheel',        x -15,        100+30  +cross);
+    graphs.fillText(front_force.pbrake.toFixed(1) + ' kg brake',        x -15,        100+40  +cross);
 		let dive = (front_force.pbrake / front_force.ptransfer)*100;
-		ctx.fillText(dive.toFixed(1) + ' % dive', x -15, 140);
-		
-    ctx.globalAlpha = 1;
-		void ctx.setTransform(old);
+		graphs.fillText(dive.toFixed(1) + ' % dive',                        x -15,        100+50  +cross);
 	}
-	function drawRearGraph(shock, current) {
-		let x_shift = 16.5; let y_shift = 1;
+  function drawRearGraph(shock, current) {
+    let compressed =  shock[1].length;  // 262
+    let extended =    shock[4].length;  // 312
+    let bench =       Shockcurve(shock, {force:0}).length;
+    let min =         Shockcurve(shock, {length:extended-0.001}).force;   // -20
+    let max =         Shockcurve(shock, {length:compressed+0.001}).force; // 680
+
+    let force_tick = 50;
+    let length_tick = 5;
+    let left = Math.floor(min/force_tick)*force_tick;         // -100
+    let right = Math.ceil(max/force_tick)*force_tick;         // 700
+    let bottom = Math.ceil(extended/length_tick)*length_tick; // 315
+    let top = Math.floor(compressed/length_tick)*length_tick; // 260
+
+		let stroke = extended - compressed;   // 50 raw
+		let range = max - min;                // 700 raw
+
 		let size = 100;
-		let step=1;
-		     
-		let stroke = shock[5].length - shock[0].length;	
-		let range = 1000;
-		let cross = 5;
+    let cross = 5; // px. relative to 100px graph
 
-		let scale = (1000/22)*(4/100);	// canvas is 1000px scaled to 22 grid lines. Graph viewpoer is 100px over 4 grid lines
-		let old = ctx.getTransform();
-		void ctx.setTransform(scale, 0, 0, scale, (1000/22*x_shift), (1000/22*y_shift)); // x & y must be scaled equally for text
-		
-		ctx.globalAlpha = 1;
-    ctx.setLineDash([10, 0]);
-    ctx.strokeStyle = "red";
-    ctx.lineWidth = 1;
+    let x_mult = size/(right-left);  // kg       // 1/7
+    let y_mult = size/(bottom-top); // mm       // 2
+		let x_shift = left;       // kg       // -100
+    let y_shift = top;     // mm          // 260
 
-		let y_mult = 100/stroke;
-		let x_mult = 100/range;
-		
-		ctx.beginPath();
-		ctx.moveTo(100, 0);
-		
-		for (let p=1; p< shock.length; p++) {
-			ctx.strokeStyle =  shock[p].color;
-			let x = limit(shock[p].force*x_mult, 0, 100);
-			let y = limit((shock[p].length-shock[0].length )*y_mult, 0, 100);
-			ctx.lineTo(x, y);
+		let scale = (graph_canvas.width * 0.2 /size);	// scaled to 20% of 1000px canvas // 2
+		//let old = ctx.getTransform();
+		void graphs.setTransform(scale, 0, 0, scale, (1000* 0.75), (1000 *0.04)); // x & y must be scaled equally for text
+    graphs.clearRect(-50, -50, 240, 240);
+
+    // Draw gridlines at 50% opacity
+    graphs.globalAlpha = 0.5;
+    // draw horizontal lines
+    for (let y = top; y <= bottom; y += length_tick) {
+      drawLine(graphs, (left-x_shift)*x_mult, (y-y_shift)*y_mult, (right-x_shift)*x_mult, (y-y_shift)*y_mult, "black", 0.4);
+    }
+    // draw vertical lines
+    for (let x = left; x <= right; x += force_tick) {
+      drawLine(graphs, (x-x_shift)*x_mult, (bottom-y_shift)*y_mult, (x-x_shift)*x_mult, (top-y_shift)*y_mult, "black", 0.4);
+    }
+    graphs.globalAlpha = 1;
+    drawLine(graphs, (left-x_shift)*x_mult, (0-y_shift)*y_mult, (right-x_shift)*x_mult, (0-y_shift)*y_mult, "black", 1);
+    drawLine(graphs, (0-x_shift)*x_mult, (bottom-y_shift)*y_mult, (0-x_shift)*x_mult, (top-y_shift)*y_mult, "black", 1);
+
+    graphs.setLineDash([10, 0]);
+    graphs.strokeStyle = "red";
+    graphs.lineWidth = 2;
+
+    var x1; var y1;
+    for (let p=1; p< shock.length; p++) {
+      x1 = limit((shock[p-1].force -x_shift)*x_mult, 0, size); //(min-x_shift)*x_mult, (max-x_shift)*x_mult);
+      y1 = limit((shock[p-1].length-y_shift)*y_mult, 0, size); //(compressed-y_shift)*y_mult, (extended-y_shift)*y_mult);
+      graphs.beginPath();
+      graphs.moveTo(x1, y1);
+			graphs.strokeStyle = shock[p-1].color;
+      x1 = limit((shock[p-0].force -x_shift)*x_mult, 0, size); //(min-x_shift)*x_mult, (max-x_shift)*x_mult);
+      y1 = limit((shock[p-0].length-y_shift)*y_mult, 0, size); //(compressed-y_shift)*y_mult, (extended-y_shift)*y_mult);
+			graphs.lineTo(x1, y1);
+      graphs.stroke();
 		}
-		ctx.stroke();
-		
-		let current_force = Shockcurve(shock, {length:current}).force;
-		let x = limit(current_force*x_mult, 0, 100);
-		ctx.beginPath();
-		ctx.setLineDash([5, 1]);
-		ctx.strokeStyle = "blue";
-    ctx.moveTo(x, 100);
-		ctx.lineTo(x,   0);
-		ctx.stroke();
-		
-		ctx.strokeStyle = "blue";
-		ctx.beginPath();
-    ctx.moveTo(0, 				(current-shock[0].length)*y_mult);
-		ctx.lineTo(x +cross, 	(current-shock[0].length)*y_mult);
-		ctx.stroke();
-		
-		ctx.font = "10px Arial";
-		ctx.beginPath();
-		ctx.fillText(current.toFixed(1) + ' mm', -20, (current-shock[0].length)*y_mult -cross)
-		let pct = 100 - (current-shock[0].length)/stroke*100;
-		ctx.fillText(pct.toFixed(1) + ' %', x +(2*cross), (current-shock[0].length)*y_mult +3);
-		ctx.fillText(current_force.toFixed(1) + ' kg', x -15, -5);
-    ctx.fillText(rear_force.pbase.toFixed(1) + ' kg base', x -15, 110);
-    ctx.fillText(rear_force.ptransfer.toFixed(1) + ' kg transfer', x -15, 120);
-		ctx.fillText(rear_force.pdrive.toFixed(1) + ' kg drive', x -15, 130);
-		ctx.fillText(rear_force.pchain.toFixed(1) + ' kg chain', x -15, 140);
+
+    let temp = Shockcurve(shock, {length:current});
+		let current_force = temp.force;
+		let mode = temp.text;
+		let x = limit((current_force-x_shift)*x_mult, 0, 100);
+    let y = limit((current-y_shift)*y_mult, 0, 100);
+    let label_min = limit((compressed-y_shift)*y_mult, 0, 100);
+    let label_max = limit((extended-y_shift)*y_mult, 0, 100);
+		graphs.beginPath();
+    graphs.lineWidth = 1;
+		graphs.setLineDash([5, 1]);
+		graphs.strokeStyle = "blue";
+
+    graphs.moveTo(x,        0);
+    graphs.lineTo(x,        100);
+    graphs.stroke();
+
+    graphs.strokeStyle = "blue";
+    graphs.beginPath();
+    graphs.moveTo(0,        y);
+    graphs.lineTo(x +cross, y);
+		graphs.stroke();
+
+		graphs.font = "10px Arial";
+
+		graphs.beginPath();
+    if (y >25) graphs.fillText(compressed.toFixed(1),                              -30, label_min+cross);
+    if (y <75) graphs.fillText(extended.toFixed(1),                                -30, label_max+cross);
+
+    graphs.fillText(current.toFixed(1),                               -30,          y       -cross);
+		graphs.fillText('mm',                                             -20,          y       +cross);
+    let pct = 100 - (current-compressed)/stroke*100;
+		graphs.fillText(pct.toFixed(1) + ' %',                            x +(2*cross), y       -cross);
+    graphs.fillText(mode,                                             x +(2*cross), y       +cross);
+		graphs.fillText(current_force.toFixed(1) + ' kg',                 x -15,                -cross);
+    graphs.fillText(rear_force.pbase.toFixed(1) + ' kg base',         x -15,        100+10  +cross);
+    graphs.fillText(rear_force.ptransfer.toFixed(1) + ' kg transfer', x -15,        100+20  +cross);
+    graphs.fillText(rear_force.pwheel.toFixed(1) + ' kg wheel',       x -15,        100+30  +cross);
+    graphs.fillText(rear_force.pchain.toFixed(1) + ' kg chain',       x -15,        100+40  +cross);
+    graphs.fillText(rear_force.pdrive.toFixed(1) + ' kg drive',       x -15,        100+50  +cross);
 		let squat = ((rear_force.pdrive + rear_force.pchain) / rear_force.ptransfer)*100;
-		ctx.fillText(squat.toFixed(1) + ' % dive', x -15, 150);
-		
-		ctx.globalAlpha = 1;
-		void ctx.setTransform(old);
+		graphs.fillText(squat.toFixed(1) + ' % squat',                     x -15,        100+60  +cross);
 	}
-	
+
 // Construction functions
   function build_CofG() {
-		CofG[0] = {mass: 0, len:0, ang:0}; // reset resultant 
+		CofG[0] = {mass: 0, len:0, ang:0}; // reset resultant
 		for (let s=1; s<4; s++) CofG[s].ang;
 		CofG[4].len = polar(FWS).len;	// Front Wheel position
 		CofG[4].ang = polar(FWS).ang;	// Front Wheel position
 		CofG[5].len = polar(RWS).len;	// Rear Wheel position
 		CofG[5].ang = polar(RWS).ang;	// Rear Wheel position
-		
+
 		for (let c=1; c<CofG.length; c++) {
 			let new_CofG = {x:0, y:0};
 			let new_mass = CofG[0].mass + CofG[c].mass;
@@ -736,28 +886,28 @@ $(document).ready(function() {
 		let swingarm_pickup;
     let ang_pickup;
 		let temp1,temp2;
-		
+
 		ang_pickup = polar(P_UP_RR).ang - deg(acosine(length.swingarm_pickup, polar(P_UP_RR).len, length.gap)); // rad -2deg
     ang.rear = ang_pickup - spa; // rad -22deg
 
 		swingarm_pickup = xy({len: length.swingarm_pickup, ang: ang_pickup});
 		RWS = xy({len: sal, ang: ang.rear});
-		
+
 		temp1 = polar({x: 50, y:  sat/2});
 		temp2 = {x: 50, y: -sat/2};
-		
-    swingarm[0] = join(xy(nothing), xy(nothing)); 
-    swingarm[1] = xy({len: sat, ang: ang.rear +30}); 
-    swingarm[2] = join(swingarm_pickup, xy({len:35, ang: ang.rear +270-30})); 
+
+    swingarm[0] = join(xy(nothing), xy(nothing));
+    swingarm[1] = xy({len: sat, ang: ang.rear +30});
+    swingarm[2] = join(swingarm_pickup, xy({len:35, ang: ang.rear +270-30}));
 		swingarm[3] = swingarm_pickup;
 		swingarm[4] = join(swingarm_pickup, xy({len:35, ang: ang.rear +270+30}));
-		swingarm[5] = join(xy({len:san, ang:ang.rear}), xy({len: temp1.len, ang: ang.rear +temp1.ang})); 
-		swingarm[6] = join(xy({len:san, ang:ang.rear}), xy({len: temp1.len, ang: ang.rear -temp1.ang})); 
-		swingarm[7] = xy({len: sat, ang: ang.rear -30}); 
-		swingarm[8] = join(xy(nothing), xy(nothing)); 
+		swingarm[5] = join(xy({len:san, ang:ang.rear}), xy({len: temp1.len, ang: ang.rear +temp1.ang}));
+		swingarm[6] = join(xy({len:san, ang:ang.rear}), xy({len: temp1.len, ang: ang.rear -temp1.ang}));
+		swingarm[7] = xy({len: sat, ang: ang.rear -30});
+		swingarm[8] = join(xy(nothing), xy(nothing));
 		swingarm[9] = xy(swingarm_pickup);
-    swingarm[10] = join(xy(nothing), xy(nothing)); 
-		swingarm[11] = join(RWS, xy(nothing)); 
+    swingarm[10] = join(xy(nothing), xy(nothing));
+		swingarm[11] = join(RWS, xy(nothing));
 
     for (let i = 0; i < swingarm.length; i++) {
       Object.defineProperty(swingarm[i], 'geo', {value: false, writable: true});
@@ -781,13 +931,13 @@ $(document).ready(function() {
     COB = deg(acosine(link.b, link.c, shock)); //  120deg
     COA = COB + link.turn; 		//  140deg
     length.gap = cosine(link.a, link.d, rad(COA)); // phantom length 381mm
-    
+
     ang.beam = ref3.ang + deg(acosine(ref3.len, length.gap, length.swingarm_pickup)) + deg(acosine(link.d, length.gap, link.a)) - 180; // deg
     ang.link = ang.beam + COA -90;
     ang.shock_rr = ang.beam - deg(acosine(shock, link.c, link.b)) +90;
-		
+
 		origin = join(P_UP_RR, xy({len: (link.d), 					ang: ang.beam}));
-		
+
     beam[0] = join(P_UP_RR, xy(nothing));
     beam[1] = join(P_UP_RR, xy({len: 20, ang: ang.beam 			+30}));
     beam[2] = join(origin,  xy({len: 20, ang: ang.beam +180 -30}));
@@ -803,10 +953,10 @@ $(document).ready(function() {
       Object.defineProperty(beam[i], 'geo', {value: false, writable: true});
       if (i >= 7) beam[i].geo = true;
     }
-		
+
 		swingarm_pickup = join(origin, xy({len: link.a, ang: ang.link -90}));
 		shock_bottom = join(origin, xy({len: link.b, ang: ang.link -90 -link.turn}));
-		
+
     linkage[ 0] = join(P_UP_RR, xy({len: (link.d - link.c), ang: ang.beam}));
     linkage[ 1] = join(shock_bottom, xy(nothing));
     linkage[ 2] = join(shock_bottom, xy({len: 35, ang: ang.link +30}));
@@ -821,7 +971,7 @@ $(document).ready(function() {
     linkage[11] = join(origin, xy(nothing));
     linkage[12] = join(swingarm_pickup, xy(nothing));
     linkage[13] = join(shock_bottom, xy(nothing));
-		
+
 		for (let i = 0; i < linkage.length; i++) {
       Object.defineProperty(linkage[i], 'geo', {value: false, writable: true});
       if (i >= 11) linkage[i].geo = true;
@@ -829,9 +979,9 @@ $(document).ready(function() {
   }
   function build_frame(rotation = 0) {
 
-    const eccen_adj = 	{len:13.5, ang: 270 + rotation}; // ang is the adjustable variable
-    const steer_adj = 	{len:   7, ang: 180 + rotation};
-    const eccentric = 	{len: 500, ang: 180 + rotation}; // Frame length to Eccentric  
+    var eccen_adj = 	{len:13.5, ang: (setting.angle/1 + rotation)}; // ang is the adjustable variable
+    var steer_adj = 	{len: setting.steering/1, ang: (180 + rotation)};
+    const eccentric = 	{len: 500, ang: 180 + rotation}; // Frame length to Eccentric
     const pickup_rr = 	{len: 240, ang: 125 + rotation}; // Rear Pickup Length
     const steering = 		{len: 800, ang: 165 + rotation}; // Steering head nominal (underside centre of insert)
     const sprocket_fr = {len:  80, ang: 200 + rotation}; // Front sprocket
@@ -839,6 +989,7 @@ $(document).ready(function() {
     const c_of_g_b = 		{len: 450, ang: 160 + rotation}; // will become a variable depending on settings
 		const c_of_g_f = 		{len: 460, ang: 135 + rotation}; // will become a variable depending on settings
 		const c_of_g_r = 		{len: 440, ang: 115 + rotation}; // will become a variable depending on settings
+    //dump.innerHTML += eccen_adj = ' '; // + steer_adj;
 
     ECCEN_IN =  xy(eccentric);
     ECCEN_OUT = join(xy(eccentric), xy(eccen_adj));
@@ -881,25 +1032,25 @@ $(document).ready(function() {
     }
   }
   function build_saxtrak(shock) {
-    
+
 		// inputs are global xy's ECCEN & P_UP_FR, plus shock length passed as param
 		let ref; // eccentric to shock top mount
     let lower_link; // angle of saXtrak opposite shock 								// rad 140deg
 		let SHOCK;
-		
+
     const wishbone =  {len: 270, ang: 180}; // saXtrak Arm Length
     const pickup_fr = {len: 135, ang: 190}; // saXtrak Pickup
     const xat = 40; // saXtrak thickness
-		
+
     // calculates the orientation of front saXtrak based on frame ref and shock length
     ref = polar(P_UP_FR, ECCEN_OUT);	// returned angle is in degrees. 2nd param is the origin
-    lower_link = deg(acosine(ref.len, pickup_fr.len, shock)); // angle of saXtrak opposite shock 
+    lower_link = deg(acosine(ref.len, pickup_fr.len, shock)); // angle of saXtrak opposite shock
     ang.front = (ref.ang +lower_link +wishbone.ang -pickup_fr.ang);
 		ang.shock_fr = ref.ang - acosine(ref.len, shock, pickup_fr.len);
 
 		PIVOT = join(ECCEN_OUT, xy({len: wishbone.len,  ang: ang.front} ));
 		SHOCK = join(ECCEN_OUT, xy({len: pickup_fr.len, ang: ref.ang +lower_link}));
-		
+
 		saxtrak[ 0] = join(P_UP_FR, xy({len: 0, ang: 0}));
     saxtrak[ 1] = join(SHOCK, xy({len: 0, ang: -90 + ang.front}));
 		saxtrak[ 2] = join(SHOCK, xy({len: 4, ang: -120 + ang.front}));
@@ -911,44 +1062,45 @@ $(document).ready(function() {
     saxtrak[ 8] = join(PIVOT, xy({len: xat, ang: +150 + ang.front}));
     saxtrak[ 9] = join(SHOCK, xy({len: 4, ang: -60 + ang.front}));
 		saxtrak[10] = join(SHOCK, xy({len: 0, ang: -90 + ang.front}));
-	
+
     saxtrak[11] = ECCEN_OUT;
     saxtrak[12] = PIVOT;
     saxtrak[13] = SHOCK;
-		
+
 		for (let i = 0; i < saxtrak.length; i++) {
       Object.defineProperty(saxtrak[i], 'geo', {value: false, writable: true});
       if (i >= 11) saxtrak[i].geo = true;
     }
   }
   function build_forks() {
-    
+
 		// inputs are global xy's TOP & PIVOT
 
 		let axis = polar(PIVOT, TOP);
 		let ref1, ref2, ref3, ref4, ref5, temp;
-		
+
 		// drawing parameters, or things that will never change!
     const frl = 428; // fork leg length, top-to-spindle
     const fru =  73; // fork leg length, top to middle of box
 		const fwd =  60; // Fork Leg width
     const suo =  15; // Steering axis offet upper
     const slo =  20; // Steering axis offet lower
-		const yko =  40; // distance top of yoke to steering head reference 
+		const yko =  40; // distance top of yoke to steering head reference
 		const ykl =  90; // depth of yoke body
     const swd =  40; // Sliders width
 		const sln = 550; // slider length
-		
+
 		// variable parameters to adjust
-    const fro = -6; // Insert offset, +5mm lowered, -5mm is raised
-    const frt = fru + fro; // Fork top above pivot (55mm)
-    const frb = frl - frt; // Fork bottom below pivot (445mm)
+    var fro = setting.forks/1; // Insert offset, +5mm lowered, -5mm is raised
+    var frt = fru + fro; // Fork top above pivot (55mm)
+    var frb = frl - frt; // Fork bottom below pivot (445mm)
+
     const ftp = 75; // Distance forks pass through yoke (clip-ons don't count)
-    
+
 		ang.rake = axis.ang;		// angle of PIVOT relative to steering head TOP. I.e. approx 270-24 =246
     length.head = axis.len; // length
     ang.forks = ang.rake - deg (Math.atan((slo - suo) / (length.head - yko)) );
-		
+
 		ref1 = join(TOP, 	 xy({len:yko, ang: ang.forks    }));	// plane of top of yoke
 		ref2 = join(ref1,	 xy({len:suo, ang: ang.forks -90}));  // center line of sliders at yoke top
 		ref3 = join(PIVOT, xy({len:slo, ang: ang.forks -90}));	// centre line of sliders at lower offset
@@ -967,26 +1119,26 @@ $(document).ready(function() {
     stanchion[6] = join(ref3, 	xy({len: fwd,   		ang: ang.forks +30}));
     stanchion[7] = join(FWS, 		xy({len: fwd, 			ang: ang.forks +90 +60}));
     stanchion[8] = join(FWS, 		xy(nothing));
-		
+
     stanchion[9] = FWS;
 
 		for (let i = 0; i < stanchion.length; i++) {
       Object.defineProperty(stanchion[i], 'geo', {value: false, writable: true});
       if (i >= 9) stanchion[i].geo = true;
     }
-		
+
     sliders[0] = join(ref4, 		xy({len: swd/2, ang: ang.forks -90}));
     sliders[1] = join(ref4, 		xy({len: swd/2, ang: ang.forks +90}));
     sliders[2] = join(ref5, 		xy({len: swd/2, ang: ang.forks +90}));
     sliders[3] = join(ref5, 		xy({len: swd/2, ang: ang.forks -90}));
     sliders[4] = join(ref4, 		xy({len: swd/2, ang: ang.forks -90}));
-		
+
 		for (let i = 0; i < sliders.length; i++) {
       Object.defineProperty(sliders[i], 'geo', {value: false, writable: true});
     }
 
 		temp = polar({x: fwd/2, y: -ykl});
-		
+
     yoke[0] = join(TOP, 		xy(nothing));
     yoke[1] = join(ref2, 		xy(nothing));
     yoke[2] = join(ref2, 		xy({len:fwd/2, ang: ang.forks -90}));
@@ -994,18 +1146,18 @@ $(document).ready(function() {
     yoke[4] = join(ref2, 		xy({len: temp.len, 	ang: ang.forks +180 -(90-temp.ang)}));
     yoke[5] = join(ref2, 		xy({len:fwd/2, ang: ang.forks +90}));
     yoke[6] = join(TOP, 		xy(nothing));
-		
+
 		for (let i = 0; i < yoke.length; i++) {
       Object.defineProperty(yoke[i], 'geo', {value: false, writable: true});
     }
   }
 	function build_wheel(position, width, aspect, compliance = 0) {
-		
+
     var radius1 = ((17 / 2 * 25.4) + (width * 25.4) * aspect / 100);
-		
-		
+
+
 		/*
-    var radius2 =  (17 / 2 * 25.4); 
+    var radius2 =  (17 / 2 * 25.4);
 
     var delta = deg(Math.acos((radius1 - compliance) / radius1));
     var tyre_start = rad(270 + delta);
@@ -1027,22 +1179,29 @@ $(document).ready(function() {
 		return join(position, xy({len: (radius1 - compliance), ang: 270}));
   }
 	function build_front(shock_length) {
-		frontShock = build_shock(10, 29, 5, 297, 291, 254);
-		build_saxtrak(shock_length);	
+		//frontShock = build_shock(frontRate.value, frontPreload.value, frontLength.value, 297, 291, 254);
+    let rate = parseFloat(frontRate.value).toFixed(1);
+    let length = parseFloat(frontLength.value).toFixed(1);
+    let preload = parseFloat(frontPreload.value).toFixed(1);
+    frontShock = build_shock(rate/1, preload/1, length/1, 297, 291, 254);
+		build_saxtrak(shock_length);
 		build_forks();
 		FCP = build_wheel(FWS, 3.5, 70, 10);
 		CofG[4] = FWS; CofG[4].mass = mass.front;
 	}
 	function build_rear(shock_length) {
-		rearShock = build_shock(10, 29, 15, 297, 291, 254);
+    let rate = parseFloat(rearRate.value).toFixed(1);
+    let length = parseFloat(rearLength.value).toFixed(1);
+    let preload = parseFloat(rearPreload.value).toFixed(1);
+		rearShock = build_shock(rate/1, preload/1, length/1, 297, 291, 254);
 		build_linkage(shock_length);
 		build_swingarm();
 		RCP = build_wheel(RWS, 5.5, 55, 10);	// Rear Contact Patch, based on spindle and tyre geometry
 		CofG[5] = RWS; CofG[5].mass = mass.rear;
-		
+
 		let temp = polar(SPROCKET, RWS);
 		let chain = {x: temp.len, y: (radius.sprocket_rr - radius.sprocket_fr)};
-		ang.chain = polar(chain).ang + temp.ang;	
+		ang.chain = polar(chain).ang + temp.ang;
 	}
 	function build_all() {
 	  build_frame(ang.frame);			 // Must be called first to setup main xy locations
@@ -1053,8 +1212,8 @@ $(document).ready(function() {
 		mass.total = CofG[0].mass
 		//console.log(CofG);
 	}
-	
-// Top level functions	
+
+// Top level functions
   function drawBike() {
 		ctx.globalAlpha = 0.5;
 		drawChain();
@@ -1071,16 +1230,21 @@ $(document).ready(function() {
 		drawWheel(RWS, 5.5, 55, 10);
 
 		ctx.globalAlpha = 1.0;
-		
+
 		ctx.beginPath();
-		drawLine(canvas[0], TOP.x, TOP.y, join(TOP, xy({len:990, ang: ang.rake})).x, join(TOP, xy({len:990, ang: ang.rake})).y,
-      "red", 3, true);
-		
+
+    ctx.moveTo(TOP.x, TOP.y);
+    ctx.lineTo(join(TOP, xy({len:999, ang: ang.rake})).x, join(TOP, xy({len:999, ang: ang.rake})).y);
+    ctx.setLineDash([30, 20]);
+    ctx.strokeStyle = "red";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
 		ctx.transform(1,0,0,-1,0,0);
 		let height = RCP.y;
 		length.trail = (Math.tan(rad(270-ang.rake)) * (TOP.y - FCP.y)) - (TOP.x - FCP.x);
 		//let nTrail = Math.cos(rad(270-ang.rake)) * length.trail;
-				
+
 		ctx.font = "40px Arial";
 		ctx.fillStyle = "black";
 		ctx.beginPath();
@@ -1096,8 +1260,8 @@ $(document).ready(function() {
 		ctx.fillText(motion_ratio[0].len.toFixed(2) + ' @ ' + motion_ratio[0].ang.toFixed(1) + String.fromCharCode(176), FCP.x -120, -height +110);
 		ctx.fillText('Motion Ratio', RCP.x -120, -height +70);
 		ctx.fillText(motion_ratio[1].len.toFixed(2) + ' @ ' + motion_ratio[1].ang.toFixed(2) + String.fromCharCode(176), RCP.x -120, -height +110);
-		
-		
+
+
 		ctx.transform(1,0,0,-1,0,0);
 
   }
@@ -1112,7 +1276,7 @@ $(document).ready(function() {
       ang.frame = ang.frame + (180 - err.ang);
 
       build_all();
-			
+
 			let delta = 0.5;
 			build_front(length.front +delta);
       let fw_p = FWS;
@@ -1121,9 +1285,9 @@ $(document).ready(function() {
 			motion_ratio[0] = polar(fw_m, fw_p);
 			motion_ratio[0].ang -= 90;
 			//let shock_rate_front = Fr_force(length.front - 0.5) - Fr_force(length.front + 0.5);
-			
+
 			//text[text.length+1] = k + " Front: " + motion_ratio_front.len.toFixed(2) + '<' + motion_ratio_front.ang.toFixed(1) + ' ' + shock_rate_front.toFixed(1) + ' \n';
-			
+
 			build_rear(length.rear +0.5);
       let rw_p = RWS;
 			build_rear(length.rear -0.5);
@@ -1134,49 +1298,55 @@ $(document).ready(function() {
 			//console.log(k, err, motion_ratio_front.len, motion_ratio_rear.len);
 			//console.log(motion_ratio_rear);
 			//text[text.length+1] = k + " Rear: " + motion_ratio_rear.len.toFixed(2) + '<' + motion_ratio_rear.ang.toFixed(1) + ' ' + shock_rate_front.toFixed(1) + ' \n';
-			
+
 			build_all();
 			length.wheelbase = polar(FCP, RCP).len;
 			//length.wheelbase = RCP.x - FCP.x;
-			
+
       let CofG_height = COFG.y - RCP.y; // mm
       let CofG_Rr = +(COFG.x - FWS.x) / length.wheelbase; // 51% distance from front
 			let CofG_Fr = -(COFG.x - RWS.x) / length.wheelbase;
-			
+
       // Calculate forces
       front_force.vbase = mass.total * CofG_Fr;
       rear_force.vbase =  mass.total * CofG_Rr;
-			
+
 			var moment = acc.forward * mass.total * CofG_height;
+      acc.total = polar({x:0, y:0}, {x:-acc.forward, y:1});
+
       front_force.vtransfer = -moment / length.wheelbase;
       rear_force.vtransfer =  +moment / length.wheelbase;
       var hbrake = 0;
       var hdrive = 0;
       if (acc.forward > 0) hdrive = mass.total * acc.forward;
       if (acc.forward < 0) hbrake = mass.total * acc.forward;
-	
+
 			let draw = 0;
-			if (k == last_pass) draw = 3;
-      
-			front_force.pbase =			vector({len: front_force.vbase, 		ang: 90},	+(motion_ratio[0].ang),	FCP, draw).x; 
+			if (k == last_pass) {
+        setupTransform(RCP.y -160);   // also clears the canvas
+    		draw = 3;
+      }
+
+			front_force.pbase =			vector({len: front_force.vbase, 		ang: 90},	+(motion_ratio[0].ang),	FCP, draw).x;
 			front_force.ptransfer =	vector({len: front_force.vtransfer,	ang: 90}, +(motion_ratio[0].ang),	FCP, draw).x;
 			front_force.pbrake =		vector({len: hbrake, 								ang:180}, +(motion_ratio[0].ang),	FCP, draw).y;
-			//front_force.pwheel =		vector({len: mass.front,						ang:270}, +(motion_ratio[0].ang), FWS, draw).x;
-			front_force.pvector = 	front_force.pbase + front_force.ptransfer + front_force.pbrake;
+      front_force.pwheel =		-vector({len: mass.front *acc.total.len,	ang:acc.total.ang}, (motion_ratio[0].ang-acc.total.ang), FWS, draw).y;
+      front_force.pvector = 	front_force.pbase + front_force.pwheel + front_force.ptransfer + front_force.pbrake;
 			var dive = 100 * front_force.pbrake / front_force.ptransfer;
-			
+
 			let chain_pull = hdrive * radius.rear / radius.sprocket_rr;
-			rear_force.pbase = 			vector({len: rear_force.vbase, 			ang: 90},	+(motion_ratio[1].ang),	RCP, draw).x; 
+			rear_force.pbase = 			vector({len: rear_force.vbase, 			ang: 90},	+(motion_ratio[1].ang),	RCP, draw).x;
 			rear_force.ptransfer = 	vector({len: rear_force.vtransfer, 	ang: 90}, +(motion_ratio[1].ang), RCP, draw).x;
       rear_force.pchain = 		vector({len: chain_pull, 		 ang: ang.chain},	+(motion_ratio[1].ang), join(RWS, xy({len: radius.sprocket_rr, ang: 			ang.chain -90})), 	draw).y;	 // anti-squat from chain
 			rear_force.pdrive = 		vector({len: hdrive, 								ang:180}, +(motion_ratio[1].ang),	RCP, draw).y; // anti-squat from chain
-			rear_force.pvector =		rear_force.pbase + rear_force.ptransfer + rear_force.pchain + rear_force.pdrive;
+      rear_force.pwheel =			-vector({len: mass.rear *acc.total.len,	ang:acc.total.ang}, (motion_ratio[1].ang-acc.total.ang), RWS, draw).y;
+			rear_force.pvector =		rear_force.pbase + rear_force.pwheel + rear_force.ptransfer + rear_force.pchain + rear_force.pdrive;
 			var squat = 		100 * (rear_force.pchain + rear_force.pdrive) / rear_force.ptransfer;
-			
+
 			let ang1 = Math.atan(acc.forward);	// in rad
 			let mag1 = mass.total / Math.cos(ang1);
 			let temp2 = vector({len:mag1, ang: +270 +deg(ang1)}, deg(-ang1), COFG, draw);
-			
+
 			/*
       front_force.perror =	(Fr_force(length.front) / motion_ratio[0].len) - front_force.pvector;
 			rear_force.perror = 	(Rr_force(length.rear) 	/ motion_ratio[1].len) - rear_force.pvector;
@@ -1185,10 +1355,10 @@ $(document).ready(function() {
 			length.front += damping * front_force.perror 	/ (shock_rate_front / motion_ratio[0].len);
       length.rear += 	damping *	rear_force.perror 	/	(shock_rate_rear 	/ motion_ratio[1].len );
 			*/
-			
+
 			//length.front = Shockcurve(myShock, {len:(front_force.pvector * motion_ratio[0].len)}).length;
 			//length.rear  = Rr_length(rear_force.pvector  * motion_ratio[1].len).length;
-      
+
 			length.front  = Shockcurve(frontShock, {force:(front_force.pvector  * motion_ratio[0].len)}).length;
 			length.rear  =  Shockcurve( rearShock, {force:( rear_force.pvector  * motion_ratio[1].len)}).length;
 			// renders the diagram based on front & rear shock length as parameters
@@ -1196,9 +1366,9 @@ $(document).ready(function() {
     }
   }
 	function render() {
-		drawGrid();	// also clears the canvas
-		resolve();
-		drawFrontGraph(frontShock, length.front);
+
+    resolve();          // performs all geometry & force calculations. rotates frame and settles suspension
+    drawFrontGraph(frontShock, length.front);
 		drawRearGraph(rearShock, length.rear);
 		drawBike();
 		drawCofG();
@@ -1207,20 +1377,104 @@ $(document).ready(function() {
 		for (let t=0; t<text.length; t++) {
 			temp += text[t] + '\n';
 		}
-		document.getElementById("results").innerHTML = temp;
+		// document.getElementById("results").innerHTML = temp;
 	}
 
+  setting = eccentric_helper();
 	render();
-	
-  slider.oninput = function() {
+
+  Acceleration.oninput = function() {
 		acc.forward = parseFloat(this.value).toFixed(2);
 		render();
-		//output.innerHTML = this.value;
   }
-	
+  frontRate.oninput = function() {
+		let thisRate = parseFloat(this.value).toFixed(1);
+    frontRateLabel.innerHTML = "Spring Rate: " + thisRate + " kg/mm";
+		build_front(length.front);
+    render();
+  }
+  frontPreload.oninput = function() {
+    let thisPreload = parseFloat(this.value).toFixed(1);
+    frontPreloadLabel.innerHTML = "Preload: " + thisPreload + " mm";
+    build_front(length.front);
+    render();
+  }
+  frontLength.oninput = function() {
+    let thisLength = parseFloat(this.value).toFixed(1);
+    frontLengthLabel.innerHTML = "Length Adjuster: " + thisLength + " mm";
+    build_front(length.front);
+    render();
+  }
+  rearRate.oninput = function() {
+    let thisRate = parseFloat(this.value).toFixed(1);
+    rearRateLabel.innerHTML = "Spring Rate: " + thisRate + " kg/mm";
+    build_rear(length.rear);
+    render();
+  }
+  rearPreload.oninput = function() {
+    let thisPreload = parseFloat(this.value).toFixed(1);
+    rearPreloadLabel.innerHTML = "Preload: " + thisPreload + " mm";
+    build_rear(length.rear);
+    render();
+  }
+  rearLength.oninput = function() {
+    let thisLength = parseFloat(this.value).toFixed(1);
+    rearLengthLabel.innerHTML = "Length Adjuster: " + thisLength + " mm";
+    build_rear(length.rear);
+    render();
+  }
+
+  rakeTarget.oninput = function() {
+    setting = eccentric_helper();
+    build_all();
+    render();
+  }
+  diveTarget.oninput = function() {
+    setting = eccentric_helper();
+    build_all();
+    render();
+  }
 });
 
+</script>
 
-    </script>
-  </body>
+<!-- Script for Sidebar, Tabs, Accordions, Progress bars and slideshows -->
+<script>
+
+// Get the Sidebar
+var mySidebar = document.getElementById("mySidebar");
+
+// Get the DIV with overlay effect
+var overlayBg = document.getElementById("myOverlay");
+
+// Toggle between showing and hiding the sidebar, and add overlay effect
+function w3_open() {
+  if (mySidebar.style.display === 'block') {
+    mySidebar.style.display = 'none';
+    overlayBg.style.display = "none";
+  } else {
+    mySidebar.style.display = 'block';
+    overlayBg.style.display = "block";
+  }
+}
+
+// Close the sidebar with the close button
+function w3_close() {
+  mySidebar.style.display = "none";
+  overlayBg.style.display = "none";
+}
+
+// Accordions
+function myAccFunc(id) {
+  var x = document.getElementById(id);
+  if (x.className.indexOf("w3-show") == -1) {
+    x.className += " w3-show";
+  } else {
+    x.className = x.className.replace(" w3-show", "");
+  }
+}
+
+</script>
+
+</body>
 </html>
