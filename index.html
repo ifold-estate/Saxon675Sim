@@ -96,7 +96,15 @@ html,body,h1,h2,h3,h4,h5,h6 {font-family: "Roboto", sans-serif;}
   			</div>
   			<div class="w3-section">
   				<div id="frontRateLabel">Spring Rate: 12 kg/mm</div>
-  				<input class="w3-input" type="range" min="6" max="15" step="0.5" value=12 id="frontRate">
+  				<input class="w3-input" type="range" min="6" max="25" step="0.5" value=12 id="frontRate">
+  			</div>
+  			<div class="w3-section">
+  				<div id="frontExtendedLabel">Extended Length (eye-to-eye): 299 mm</div>
+  				<input class="w3-input" type="range" min="260" max="320" step="1" value=299 id="frontExtended">
+  			</div>
+  			<div class="w3-section">
+  				<div id="frontStrokeLabel">Stroke: 50 mm</div>
+  				<input class="w3-input" type="range" min="35" max="70" step="1" value=50 id="frontStroke">
   			</div>
   		</form>
   	</div>
@@ -231,6 +239,10 @@ var Acceleration = document.getElementById("myAccel");
 var frontPreload = document.getElementById("frontPreload");
 var frontLength = document.getElementById("frontLength");
 var frontRate = document.getElementById("frontRate");
+var frontExtended = document.getElementById("frontExtended");
+var frontStroke = document.getElementById("frontStroke");
+var frontExtendedLabel = document.getElementById("frontExtendedLabel");
+var frontStrokeLabel = document.getElementById("frontStrokeLabel");
 var rearPreload = document.getElementById("rearPreload");
 var rearLength = document.getElementById("rearLength");
 var rearRate = document.getElementById("rearRate");
@@ -348,7 +360,7 @@ var text = [];
 		let len2 = bump			+adjuster; //(Bump_stop.base + Bump_stop.plunger + Bump_stop.free + adjuster);
 		let len1 = bump-5		+adjuster; //(Bump_stop.base + Bump_stop.plunger + Bump_stop.crushed + adjuster);
 
-		let rate3 = (spring-4.5); //Top_out.rate);
+		let rate3 = (spring+4.5); // top-out spring opposes the main spring, so their rates add (bench data: 260kg@291 -> 144kg@299 = 14.5kg/mm on a 10kg/mm spring)
 		let rate2 = spring;
 		let rate1 = (spring+6.0); //Bump_stop.rate)
 
@@ -392,7 +404,12 @@ var text = [];
 		}
 		return thisPoint
 	}
+	function along(input_vector, travel_ang) {
+		// component of a force (polar: .len, .ang in deg) along a direction of travel (deg)
+		return input_vector.len * Math.cos(rad(input_vector.ang - travel_ang));
+	}
 	function vector(input_vector, rotation, position={x:0, y:0}, draw=0) {
+		// NB: used for drawing only. The returned value ignores input_vector.ang, so use along() for physics
 		let input_xy = xy(input_vector);
 		let relative = xy({len: input_vector.len, ang: +rotation});
 		let adj =    xy({len: relative.x, ang: input_vector.ang +rotation});
@@ -813,6 +830,97 @@ var text = [];
 		graphs.fillText(squat.toFixed(1) + ' % squat',                     x -15,        100+60  +cross);
 	}
 
+	function antidive_at(shock_length, h, wb) {
+		// instantaneous geometric anti-dive (%) at a given front shock length, frame held at its current attitude.
+		// Brake calipers are on the fork uprights, so the contact patch is treated as fixed to the uprights.
+		// 100% = braking load transfer fully resisted, <100% = some dive, >100% = front rises under braking
+		build_front(shock_length);
+		let offset = polar(FCP, FWS);
+		let forks0 = ang.forks;
+		build_front(shock_length + 0.5);
+		let wp = FWS;
+		let cpp = join(FWS, xy({len: offset.len, ang: offset.ang + ang.forks - forks0}));
+		build_front(shock_length - 0.5);
+		let wm = FWS;
+		let cpm = join(FWS, xy({len: offset.len, ang: offset.ang + ang.forks - forks0}));
+		// shock work from 1 kg of vertical load transfer vs from the braking force that causes it (wb/h kg)
+		let from_transfer = wm.y - wp.y;
+		let from_brake = (cpm.x - cpp.x) * wb / h;
+		return -100 * from_brake / from_transfer;
+	}
+	function drawAntiDiveGraph() {
+		let h = COFG.y - RCP.y;
+		let wb = length.wheelbase;
+		let compressed = frontShock[1].length;
+		let extended = frontShock[4].length;
+		let points = [];
+		for (let L = compressed; L <= extended + 0.01; L += (extended - compressed) / 25) {
+			points.push({len: L, ad: antidive_at(L, h, wb)});
+		}
+		let current = {len: length.front, ad: antidive_at(length.front, h, wb)};
+		build_all();	// restore geometry at the solved shock lengths
+
+		let ymin = Math.min(0, Math.floor(Math.min(...points.map(p => p.ad)) / 50) * 50);
+		let ymax = Math.max(150, Math.ceil(Math.max(...points.map(p => p.ad)) / 50) * 50);
+		// plot area in canvas pixels (between the front and rear shock graphs)
+		let x0 = 445, x1 = 640, y0 = 40, y1 = 240;
+		let px = L => x0 + (L - compressed) / (extended - compressed) * (x1 - x0);	// compressed on the left
+		let py = ad => y1 - (ad - ymin) / (ymax - ymin) * (y1 - y0);
+
+		graphs.setTransform(1, 0, 0, 1, 0, 0);
+		graphs.clearRect(402, 0, 246, graph_canvas.height);	// only the strip the shock graphs don't use
+		graphs.setLineDash([]);
+		graphs.font = "12px Arial";
+		graphs.fillStyle = "black";
+		graphs.textAlign = "right";
+
+		// grid every 50%, with 0% and 100% emphasised
+		for (let ad = ymin; ad <= ymax; ad += 50) {
+			graphs.beginPath();
+			graphs.strokeStyle = (ad == 100) ? "green" : "black";
+			graphs.globalAlpha = (ad == 0 || ad == 100) ? 1 : 0.3;
+			graphs.lineWidth = (ad == 100) ? 2 : 1;
+			if (ad == 100) graphs.setLineDash([8, 4]);
+			graphs.moveTo(x0, py(ad)); graphs.lineTo(x1, py(ad)); graphs.stroke();
+			graphs.setLineDash([]);
+			graphs.globalAlpha = 1;
+			graphs.fillText(ad + '%', x0 - 4, py(ad) + 4);
+		}
+		graphs.strokeStyle = "black";
+		graphs.strokeRect(x0, y0, x1 - x0, y1 - y0);
+
+		// the curve
+		graphs.beginPath();
+		graphs.strokeStyle = "purple";
+		graphs.lineWidth = 2;
+		points.forEach((p, i) => i ? graphs.lineTo(px(p.len), py(p.ad)) : graphs.moveTo(px(p.len), py(p.ad)));
+		graphs.stroke();
+
+		// current operating point
+		let cx = px(limit(current.len, compressed, extended));
+		let cy = py(limit(current.ad, ymin, ymax));
+		graphs.beginPath();
+		graphs.fillStyle = "red";
+		graphs.arc(cx, cy, 5, 0, Math.PI * 2);
+		graphs.fill();
+
+		graphs.fillStyle = "black";
+		graphs.textAlign = "center";
+		graphs.font = "bold 13px Arial";
+		graphs.fillText('Front anti-dive', (x0 + x1) / 2, y0 - 14);
+		graphs.font = "11px Arial";
+		graphs.textAlign = "left";  graphs.fillText(compressed.toFixed(0), x0, y1 + 14);
+		graphs.textAlign = "right"; graphs.fillText(extended.toFixed(0), x1, y1 + 14);
+		graphs.textAlign = "center";
+		graphs.fillText('shock length (mm)', (x0 + x1) / 2, y1 + 14);
+		graphs.fillText('Now: ' + current.ad.toFixed(0) + '% at ' + current.len.toFixed(1) + ' mm', (x0 + x1) / 2, y1 + 36);
+		let slope = (antidive_at(current.len - 1, h, wb) - antidive_at(current.len + 1, h, wb)) / 2;
+		build_all();
+		graphs.fillText((slope > 0 ? 'rises ' : 'falls ') + Math.abs(slope).toFixed(1) + '% per mm compressed', (x0 + x1) / 2, y1 + 54);
+		graphs.fillText('<100% dives, >100% rises', (x0 + x1) / 2, y1 + 72);
+		graphs.textAlign = "start";
+	}
+
 // Construction functions
   function build_CofG() {
 		CofG[0] = {mass: 0, len:0, ang:0}; // reset resultant
@@ -1007,7 +1115,7 @@ var text = [];
     ref = polar(P_UP_FR, ECCEN_OUT);	// returned angle is in degrees. 2nd param is the origin
     lower_link = deg(acosine(ref.len, pickup_fr.len, shock)); // angle of saXtrak opposite shock
     ang.front = (ref.ang +lower_link +wishbone.ang -pickup_fr.ang);
-		ang.shock_fr = ref.ang - acosine(ref.len, shock, pickup_fr.len);
+		ang.shock_fr = ref.ang - deg(acosine(ref.len, shock, pickup_fr.len)); // acosine returns radians
 
 		PIVOT = join(ECCEN_OUT, xy({len: wishbone.len,  ang: ang.front} ));
 		SHOCK = join(ECCEN_OUT, xy({len: pickup_fr.len, ang: ref.ang +lower_link}));
@@ -1144,7 +1252,13 @@ var text = [];
     let rate = parseFloat(frontRate.value).toFixed(1);
     let length = parseFloat(frontLength.value).toFixed(1);
     let preload = parseFloat(frontPreload.value).toFixed(1);
-    frontShock = build_shock(rate/1, preload/1, length/1, 297, 291, 254);
+    // front shock does not exist yet: derive its internal points from extended length & stroke,
+    // keeping the same top-out (8mm), bump-stop (5mm) and main-spring offsets as the measured rear unit
+    let extended = parseFloat(frontExtended.value);
+    let stroke = parseFloat(frontStroke.value);
+    let topout = extended - 8;
+    let bump = extended - stroke + 5;
+    frontShock = build_shock(rate/1, preload/1, length/1, topout + 6, topout, bump);
 		build_saxtrak(shock_length);
 		build_forks();
 		FCP = build_wheel(FWS, 3.5, 70, 10);
@@ -1215,12 +1329,18 @@ var text = [];
 		ctx.fillText(length.trail.toFixed(1) + ' mm', FCP.x -170, -height -10);
 		ctx.fillText((  0-ang.rear ).toFixed(2) + String.fromCharCode(176), 50, +15 -50*Math.sin(rad(ang.rear)));
 		ctx.fillText((180-ang.front).toFixed(1) + String.fromCharCode(176), ECCEN_OUT.x -105, -ECCEN_OUT.y +15 -105*Math.sin(rad(ang.front)));
-		if (acc.forward > 0.1) ctx.fillText(acc.forward + ' G', COFG.x +mass.total*acc.forward +10, -COFG.y +10);
-		if (acc.forward < -0.1) ctx.fillText(acc.forward + ' G', COFG.x +mass.total*acc.forward -150, -COFG.y +10);
+		if (acc.forward > 0.1) ctx.fillText(acc.forward.toFixed(2) + ' G', COFG.x +mass.total*acc.forward +10, -COFG.y +10);
+		if (acc.forward < -0.1) ctx.fillText(acc.forward.toFixed(2) + ' G', COFG.x +mass.total*acc.forward -150, -COFG.y +10);
 		ctx.fillText('Motion Ratio', FCP.x -120, -height +70);
 		ctx.fillText(motion_ratio[0].len.toFixed(2) + ' @ ' + motion_ratio[0].ang.toFixed(1) + String.fromCharCode(176), FCP.x -120, -height +110);
 		ctx.fillText('Motion Ratio', RCP.x -120, -height +70);
 		ctx.fillText(motion_ratio[1].len.toFixed(2) + ' @ ' + motion_ratio[1].ang.toFixed(2) + String.fromCharCode(176), RCP.x -120, -height +110);
+
+		// warn when a tyre's ground load goes negative: the wheel would lift, so results beyond here are not physical
+		ctx.fillStyle = "red";
+		if (front_force.vbase + front_force.vtransfer < 0) ctx.fillText('FRONT WHEEL LIFT (wheelie)', FCP.x -120, -height +150);
+		if (rear_force.vbase + rear_force.vtransfer < 0) ctx.fillText('REAR WHEEL LIFT (stoppie)', RCP.x -300, -height +150);
+		ctx.fillStyle = "black";
 
 
 		ctx.transform(1,0,0,-1,0,0);
@@ -1239,12 +1359,19 @@ var text = [];
       build_all();
 
 			let delta = 0.5;
+			// contact patch as a point fixed to the fork uprights (brake calipers are mounted there),
+			// so it rotates with the uprights as the rake changes, unlike FCP which always sits below the spindle
+			let cp_offset = polar(FCP, FWS);
+			let forks_nominal = ang.forks;
 			build_front(length.front +delta);
       let fw_p = FWS;
+			let cp_p = join(FWS, xy({len: cp_offset.len, ang: cp_offset.ang + ang.forks - forks_nominal}));
 			build_front(length.front -delta);
 			let fw_m = FWS;
+			let cp_m = join(FWS, xy({len: cp_offset.len, ang: cp_offset.ang + ang.forks - forks_nominal}));
 			motion_ratio[0] = polar(fw_m, fw_p);
 			motion_ratio[0].ang -= 90;
+			let brake_travel = polar(cp_m, cp_p); // contact patch movement per 1mm shock compression, with uprights locked to the wheel
 			//let shock_rate_front = Fr_force(length.front - 0.5) - Fr_force(length.front + 0.5);
 
 			//text[text.length+1] = k + " Front: " + motion_ratio_front.len.toFixed(2) + '<' + motion_ratio_front.ang.toFixed(1) + ' ' + shock_rate_front.toFixed(1) + ' \n';
@@ -1288,19 +1415,41 @@ var text = [];
     		draw = 3;
       }
 
-			front_force.pbase =			vector({len: front_force.vbase, 		ang: 90},	+(motion_ratio[0].ang),	FCP, draw).x;
-			front_force.ptransfer =	vector({len: front_force.vtransfer,	ang: 90}, +(motion_ratio[0].ang),	FCP, draw).x;
-			front_force.pbrake =		vector({len: hbrake, 								ang:180}, +(motion_ratio[0].ang),	FCP, draw).y;
-      front_force.pwheel =		-vector({len: mass.front *acc.total.len,	ang:acc.total.ang}, (motion_ratio[0].ang-acc.total.ang), FWS, draw).y;
+			// direction of travel of each wheel under compression (deg)
+			let travel_fr = 90 + motion_ratio[0].ang;
+			let travel_rr = 90 + motion_ratio[1].ang;
+
+			// draw the force vectors (drawing only, values come from along() below)
+			if (draw) {
+				vector({len: front_force.vbase, 		ang: 90},	+(motion_ratio[0].ang),	FCP, draw);
+				vector({len: front_force.vtransfer,	ang: 90}, +(motion_ratio[0].ang),	FCP, draw);
+				vector({len: hbrake, 								ang:180}, +(motion_ratio[0].ang),	FCP, draw);
+				vector({len: mass.front *acc.total.len,	ang:acc.total.ang}, (motion_ratio[0].ang-acc.total.ang), FWS, draw);
+			}
+
+			front_force.pbase =			along({len: front_force.vbase, 		ang: 90},	travel_fr);
+			front_force.ptransfer =	along({len: front_force.vtransfer,	ang: 90}, travel_fr);
+			// braking force works through the contact patch's travel with the uprights locked to the wheel (includes brake torque)
+			// shock force = F.d(contact)/d(shock); dividing by motion ratio keeps it in the same "along travel" units as the other terms
+			front_force.pbrake =		along({len: hbrake, 								ang:180}, brake_travel.ang) * brake_travel.len / motion_ratio[0].len;
+      front_force.pwheel =		along({len: mass.front *acc.total.len,	ang:acc.total.ang}, travel_fr);
       front_force.pvector = 	front_force.pbase + front_force.pwheel + front_force.ptransfer + front_force.pbrake;
 			var dive = 100 * front_force.pbrake / front_force.ptransfer;
 
+			radius.rear = polar(RWS, RCP).len;	// effective rolling radius of the rear tyre as built
 			let chain_pull = hdrive * radius.rear / radius.sprocket_rr;
-			rear_force.pbase = 			vector({len: rear_force.vbase, 			ang: 90},	+(motion_ratio[1].ang),	RCP, draw).x;
-			rear_force.ptransfer = 	vector({len: rear_force.vtransfer, 	ang: 90}, +(motion_ratio[1].ang), RCP, draw).x;
-      rear_force.pchain = 		vector({len: chain_pull, 		 ang: ang.chain},	+(motion_ratio[1].ang), join(RWS, xy({len: radius.sprocket_rr, ang: 			ang.chain -90})), 	draw).y;	 // anti-squat from chain
-			rear_force.pdrive = 		vector({len: hdrive, 								ang:180}, +(motion_ratio[1].ang),	RCP, draw).y; // anti-squat from chain
-      rear_force.pwheel =			-vector({len: mass.rear *acc.total.len,	ang:acc.total.ang}, (motion_ratio[1].ang-acc.total.ang), RWS, draw).y;
+			if (draw) {
+				vector({len: rear_force.vbase, 			ang: 90},	+(motion_ratio[1].ang),	RCP, draw);
+				vector({len: rear_force.vtransfer, 	ang: 90}, +(motion_ratio[1].ang), RCP, draw);
+				vector({len: chain_pull, 		 ang: ang.chain},	+(motion_ratio[1].ang), join(RWS, xy({len: radius.sprocket_rr, ang: ang.chain -90})), draw);
+				vector({len: hdrive, 								ang:180}, +(motion_ratio[1].ang),	RCP, draw);
+				vector({len: mass.rear *acc.total.len,	ang:acc.total.ang}, (motion_ratio[1].ang-acc.total.ang), RWS, draw);
+			}
+			rear_force.pbase = 			along({len: rear_force.vbase, 			ang: 90},	travel_rr);
+			rear_force.ptransfer = 	along({len: rear_force.vtransfer, 	ang: 90}, travel_rr);
+      rear_force.pchain = 		along({len: chain_pull, 		 ang: ang.chain},	travel_rr);	// anti-squat from chain, now using the actual chain angle
+			rear_force.pdrive = 		along({len: hdrive, 								ang:180}, travel_rr); // anti-squat from drive force
+      rear_force.pwheel =			along({len: mass.rear *acc.total.len,	ang:acc.total.ang}, travel_rr);
 			rear_force.pvector =		rear_force.pbase + rear_force.pwheel + rear_force.ptransfer + rear_force.pchain + rear_force.pdrive;
 			var squat = 		100 * (rear_force.pchain + rear_force.pdrive) / rear_force.ptransfer;
 
@@ -1331,6 +1480,7 @@ var text = [];
     resolve();          // performs all geometry & force calculations. rotates frame and settles suspension
     drawFrontGraph(frontShock, length.front);
 		drawRearGraph(rearShock, length.rear);
+		drawAntiDiveGraph();
 		drawBike();
 		drawCofG();
 		drawGround();
@@ -1345,7 +1495,7 @@ var text = [];
 	render();
 
   Acceleration.oninput = function() {
-		acc.forward = parseFloat(this.value).toFixed(2);
+		acc.forward = parseFloat(this.value); // keep as a number (toFixed returns a string)
 		render();
   }
   frontRate.oninput = function() {
@@ -1364,6 +1514,14 @@ var text = [];
     let thisLength = parseFloat(this.value).toFixed(1);
     frontLengthLabel.innerHTML = "Length Adjuster: " + thisLength + " mm";
     build_front(length.front);
+    render();
+  }
+  frontExtended.oninput = function() {
+    frontExtendedLabel.innerHTML = "Extended Length (eye-to-eye): " + parseFloat(this.value).toFixed(0) + " mm";
+    render();
+  }
+  frontStroke.oninput = function() {
+    frontStrokeLabel.innerHTML = "Stroke: " + parseFloat(this.value).toFixed(0) + " mm";
     render();
   }
   rearRate.oninput = function() {
